@@ -5,8 +5,15 @@ import Wizard from '@/components/Wizard';
 import Chat from '@/components/Chat';
 
 type Setup = {
-  config: { configured: boolean; provider?: string; model?: string; keyHint: string | null };
-  engine: { ok: boolean; detail: string };
+  config: { 
+    configured: boolean; 
+    provider?: string; 
+    model?: string; 
+    keyHint: string | null;
+    backend?: 'local' | 'cloud';
+    hasCloudToken?: boolean;
+  };
+  backend: { ok: boolean; detail: string; backend: 'local' | 'cloud' };
 };
 
 export default function Page() {
@@ -20,8 +27,8 @@ export default function Page() {
   }
 
   if (!setup.config.configured) {
-    return <Wizard engine={setup.engine} onDone={refresh} />;
+    return <Wizard backend={setup.backend} onDone={refresh} />;
   }
 
-  return <Chat model={setup.config.model!} provider={setup.config.provider!} />;
+  return <Chat model={setup.config.model!} provider={setup.config.provider!} backend={setup.config.backend!} />;
 }

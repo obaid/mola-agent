@@ -1,7 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { asModelMedia, type Shot } from './media';
-import { act, createMachine, deleteMachine, desktopUrl, getMachine, listMachines, startMachine, waitForReady } from './engine';
+import { act, createMachine, deleteMachine, desktopUrl, getMachine, listMachines, startMachine, waitForReady } from './backend';
 
 /**
  * The tools the agent uses, and the state they share.
@@ -287,3 +287,4 @@ export function buildTools(session: Session) {
 }
 
 export { listMachines, desktopUrl };
+export { getBackend } from './backend';
