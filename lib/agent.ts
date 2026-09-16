@@ -31,6 +31,7 @@ export function sessionFor(threadId: string): Session {
   const thread = readThread(threadId);
   return {
     machineId: thread?.machineId ?? null,
+    threadId,
     onMachine: (id) => {
       update(threadId, { machineId: id, machineTouchedAt: new Date().toISOString() });
     },

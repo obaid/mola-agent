@@ -49,6 +49,45 @@ claude mcp add mola -- npx -y mola-core mcp
 This app exists for the thing MCP cannot do: showing you the desktop beside the
 conversation while the agent works.
 
+## Cloud mode
+
+mola-agent supports **cloud.mola.sh** alongside local mola-core. Use persistent
+cloud computers instead of throwaway VMs.
+
+### Quick start (cloud)
+
+```sh
+# One-time: authenticate
+npx mola-cloud login
+
+# Run in cloud mode
+export MOLA_BACKEND=cloud
+npx mola-agent
+```
+
+Or set the token directly:
+
+```sh
+export MOLA_TOKEN="sk-..."  # from https://cloud.mola.sh → API tokens
+export MOLA_BACKEND=cloud
+npx mola-agent
+```
+
+### Local vs cloud
+
+| | Local (default) | Cloud |
+|---|---|---|
+| **Setup** | `npx mola-core` | `npx mola-cloud login` |
+| **Environment** | `MOLA_BACKEND=local` (default) | `MOLA_BACKEND=cloud` |
+| **Computers** | Throwaway VMs | Persistent (reuse across sessions) |
+| **Cost** | Free (local resources) | Usage-based (10h free/month) |
+| **Auto-stop** | Manual (idle reaper) | Built-in (30-60 min) |
+
+Conversations work identically in both modes. In cloud mode, each thread gets
+its own persistent computer that survives stops and restarts.
+
+See [`docs/cloud-setup.md`](docs/cloud-setup.md) for details.
+
 ## How it fits together
 
 ```
