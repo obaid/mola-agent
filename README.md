@@ -5,7 +5,7 @@
 A chat app that gives an agent a real [Omarchy](https://omarchy.org) computer. Run Omarchy locally with `mola-core` or in the cloud with `cloud.mola.sh`. The agent works on it, you see the screen while it does, and you can take the mouse whenever you want.
 
 ```sh
-    10|npx mola-agent         # this app
+npx mola-agent         # this app
 npx mola-core          # local engine (or use cloud)
 ```
 
@@ -17,7 +17,7 @@ Open a browser, pick a model and backend, then talk to it.
 
 Run Omarchy computers on your own hardware:
 
-    20|```sh
+```sh
 npx mola-core          # Terminal 1 - start engine
 npx mola-agent         # Terminal 2 - start app
 ```
@@ -28,7 +28,7 @@ npx mola-agent         # Terminal 2 - start app
 
 ### Cloud Mode
 
-    30|Run persistent Omarchy computers on `cloud.mola.sh`:
+Run persistent Omarchy computers on `cloud.mola.sh`:
 
 ```sh
 # Authenticate once
@@ -39,7 +39,7 @@ export MOLA_BACKEND=cloud
 npx mola-agent
 ```
 
-    40|Or set the token directly:
+Or set the token directly:
 
 ```sh
 export MOLA_TOKEN="sk-..."  # from https://cloud.mola.sh → API tokens
@@ -49,7 +49,7 @@ npx mola-agent
 
 The setup wizard lets you choose. Switch anytime in **Settings** (⚙️ button).
 
-    50|## What it does
+## What it does
 
 The agent has a real Omarchy computer and sixteen ways to use it. It prefers the
 shell, because almost everything is faster there, and drives the desktop when the
@@ -60,7 +60,7 @@ task is genuinely graphical.
 | Shell | run a command, start a long job and poll it, read and write files |
 | Screen | look at it, click, type, press keys, scroll |
 | Machines | create, stop, start, delete |
-    60|| Snapshots | save and restore machine state (cloud only) |
+| Snapshots | save and restore machine state (cloud only) |
 
 Press **Show desktop** and the live screen slides in beside the conversation.
 Your mouse and keyboard work there, so you can take over mid-task and hand back.
@@ -71,7 +71,7 @@ Your mouse and keyboard work there, so you can take over mid-task and hand back.
 |---|---|---|
 | **Setup** | `npx mola-core` | `npx mola-cloud login` |
 | **Where** | Omarchy on your machine | Omarchy on cloud.mola.sh |
-    70|| **Persistence** | Stops auto-delete after idle | Computers persist, auto-stop when idle |
+| **Persistence** | Stops auto-delete after idle | Computers persist, auto-stop when idle |
 | **Cost** | Free (your hardware) | Usage-based (10h free/month) |
 | **Auto-stop** | 15 minutes idle | 30 min (free) or 60 min (paid) |
 | **Snapshots** | No | Yes |
@@ -81,7 +81,7 @@ In cloud mode, each conversation gets its own persistent Omarchy computer (or sh
 
 ## What you need
 
-    80|**For both backends:**
+**For both backends:**
 - Node 20 or newer
 - API key for Anthropic, OpenAI or OpenRouter (stored in `~/.mola-agent/config.json`, mode 0600)
 
@@ -92,7 +92,7 @@ In cloud mode, each conversation gets its own persistent Omarchy computer (or sh
 **For cloud backend:**
 - `MOLA_TOKEN` from [cloud.mola.sh](https://cloud.mola.sh)
 
-    90|## Cloud Features
+## Cloud Features
 
 When using the cloud backend, you get:
 
@@ -102,7 +102,7 @@ When using the cloud backend, you get:
 - **Usage display**: See computers running, compute minutes used, plan limits
 - **Fleet management**: View, start, stop, delete multiple computers
 - **Computer policy**: Per-thread (default) or shared across conversations
-   100|- **Auto-stop**: Machines stop after inactivity to save costs (30/60 min)
+- **Auto-stop**: Machines stop after inactivity to save costs (30/60 min)
 - **Regions**: Current region displayed (Germany pilot; more coming)
 - **Billing warnings**: Alerts at 90% compute minutes or max computers
 
@@ -113,7 +113,7 @@ See [`docs/cloud-setup.md`](docs/cloud-setup.md) for details.
 If you have Claude Code, Claude Desktop or Cursor, you may not need this app at
 all. The engine ships an MCP server:
 
-   110|```sh
+```sh
 # For local mola-core
 claude mcp add mola -- npx -y mola-core mcp
 
@@ -124,7 +124,7 @@ claude mcp add mola-cloud -- npx -y mola-cloud mcp
 This app exists for the thing MCP cannot do: showing you the desktop beside the
 conversation while the agent works.
 
-   120|## Configuration
+## Configuration
 
 Config lives at `~/.mola-agent/config.json`:
 
@@ -135,7 +135,7 @@ Config lives at `~/.mola-agent/config.json`:
   "model": "claude-3-5-sonnet-20241022",
   "backend": "cloud",
   "cloudProfile": "pilot-2c-4g",
-   130|  "computerPolicy": "per-thread",
+  "computerPolicy": "per-thread",
   "confirmCommands": false
 }
 ```
@@ -146,7 +146,7 @@ Config lives at `~/.mola-agent/config.json`:
 - `MOLA_BACKEND=local` or `MOLA_BACKEND=cloud` (overrides config)
 
 **Cloud:**
-   140|- `MOLA_TOKEN` - Cloud API token (required for cloud backend)
+- `MOLA_TOKEN` - Cloud API token (required for cloud backend)
 - `MOLA_CLOUD_API` - Cloud API URL (default: https://cloud.mola.sh/api/v1)
 
 **Local:**
@@ -156,7 +156,7 @@ Config lives at `~/.mola-agent/config.json`:
 
 ## How it fits together
 
-   150|### Local mode
+### Local mode
 ```
 browser  ─────►  this app's server  ─────►  mola-core :4141  ──►  QEMU
  chat UI          agent loop, tools          REST API         (Omarchy, local)
@@ -166,7 +166,7 @@ browser  ─────►  this app's server  ─────►  mola-core :4
 ### Cloud mode
 ```
 browser  ─────►  this app's server  ─────►  cloud.mola.sh  ──►  QEMU
-   160| chat UI          agent loop, tools          REST API       (Omarchy, cloud)
+ chat UI          agent loop, tools          REST API       (Omarchy, cloud)
  iframe ──────────────────────────────────►  /desktop/sessions
 ```
 
@@ -177,7 +177,7 @@ call it anyway, and an agent run takes minutes and has to survive a reload.
 The iframe is the one thing that talks to the backend directly, because it loads a
 document rather than making a request.
 
-   170|## Implementation details
+## Implementation details
 
 Three details are worth knowing if you are reading the source:
 
@@ -187,7 +187,7 @@ Three details are worth knowing if you are reading the source:
 - **Desktop tickets are single use and live sixty seconds.** They are minted when
   the panel opens, not when a machine is created, and again when a stopped
   machine comes back. Cloud sessions auto-refresh before expiry.
-   180|- **Idle machines stop after 15 minutes locally.** Each holds 4 GB, so four idle
+- **Idle machines stop after 15 minutes locally.** Each holds 4 GB, so four idle
   conversations is a whole laptop. Disks survive a stop, so nothing is lost.
   Cloud machines auto-stop after 30 or 60 minutes depending on plan.
 
@@ -197,7 +197,7 @@ Three details are worth knowing if you are reading the source:
 npm install
 npm run dev                                  # http://localhost:3000
 npm run build && npm run bundle && npm test
-   190|```
+```
 
 `npm test` packs the tarball, installs it, boots it and checks that every asset
 the page references resolves. It takes about forty seconds and it is the most
