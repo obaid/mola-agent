@@ -12,6 +12,8 @@ import { randomBytes } from 'node:crypto';
  */
 
 export type ProviderId = 'anthropic' | 'openai' | 'openrouter';
+export type Backend = 'local' | 'cloud';
+export type ComputerPolicy = 'per-thread' | 'shared';
 
 export type Config = {
   provider?: ProviderId;
@@ -21,6 +23,12 @@ export type Config = {
   approvalSecret: string;
   /** Ask before every shell command. Off by default; the machine is disposable. */
   confirmCommands: boolean;
+  /** Backend selection: local mola-core or cloud.mola.sh (MOLA_BACKEND env overrides) */
+  backend?: Backend;
+  /** Default cloud profile when creating computers */
+  cloudProfile?: string;
+  /** Computer policy: per-thread (default) or shared across all threads */
+  computerPolicy?: ComputerPolicy;
 };
 
 export function configDir() {
@@ -57,12 +65,20 @@ export function update(patch: Partial<Config>): Config {
 
 /** Everything the browser is allowed to know. Never the key itself. */
 export function publicConfig() {
-  const { provider, model, apiKey, confirmCommands } = readConfig();
+  const { provider, model, apiKey, confirmCommands, backend, cloudProfile, computerPolicy } = readConfig();
+  const effectiveBackend = process.env.MOLA_BACKEND === 'cloud' || process.env.MOLA_BACKEND === 'local'
+    ? process.env.MOLA_BACKEND
+    : backend ?? 'local';
+  
   return {
     provider,
     model,
     confirmCommands,
+    backend: effectiveBackend,
+    cloudProfile,
+    computerPolicy: computerPolicy ?? 'per-thread',
     configured: Boolean(provider && apiKey && model),
     keyHint: apiKey ? `…${apiKey.slice(-4)}` : null,
+    hasCloudToken: Boolean(process.env.MOLA_TOKEN),
   };
 }

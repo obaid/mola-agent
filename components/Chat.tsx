@@ -7,10 +7,25 @@ import DesktopPanel from './DesktopPanel';
 import ToolCard from './ToolCard';
 import Threads, { type ThreadSummary } from './Threads';
 import Machines from './Machines';
+import Settings from './Settings';
+import Snapshots from './Snapshots';
 
 type Machine = { id: string; name: string; status: string; threadId: string | null };
+type AccountInfo = {
+  email?: string;
+  plan?: string;
+  usage?: {
+    computers_running?: number;
+    computers_limit?: number;
+    compute_minutes_used?: number;
+    compute_minutes_limit?: number;
+    storage_gb_used?: number;
+    storage_gb_limit?: number;
+  };
+  trial?: { active: boolean; expires_at?: string };
+};
 
-export default function Chat({ model, provider }: { model: string; provider: string }) {
+export default function Chat({ model, provider, backend }: { model: string; provider: string; backend: 'local' | 'cloud' }) {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -18,6 +33,10 @@ export default function Chat({ model, provider }: { model: string; provider: str
   const [input, setInput] = useState('');
   const [showDesktop, setShowDesktop] = useState(false);
   const [showMachines, setShowMachines] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showSnapshots, setShowSnapshots] = useState(false);
+  const [account, setAccount] = useState<AccountInfo | null>(null);
+  const [usageWarning, setUsageWarning] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
   // The thread id has to reach the server with every message, and changing
@@ -45,10 +64,35 @@ export default function Chat({ model, provider }: { model: string; provider: str
     return t.threads as ThreadSummary[];
   }, []);
 
+  const refreshAccount = useCallback(async () => {
+    if (backend === 'cloud') {
+      try {
+        const response = await fetch('/api/account');
+        const data = await response.json();
+        if (response.ok && data.account) {
+          setAccount(data.account);
+          
+          // Check usage warnings
+          const usage = data.account.usage;
+          if (usage) {
+            if (usage.computers_running >= (usage.computers_limit ?? 999)) {
+              setUsageWarning('At computer limit. Stop unused machines to create new ones.');
+            } else if (usage.compute_minutes_limit && usage.compute_minutes_used >= usage.compute_minutes_limit * 0.9) {
+              setUsageWarning('Approaching compute minutes limit. Check plan usage.');
+            }
+          }
+        }
+      } catch {
+        // Account fetch is optional
+      }
+    }
+  }, [backend]);
+
   // Open the most recent conversation, or start one.
   useEffect(() => {
     (async () => {
       const existing = await refreshThreads();
+      await refreshAccount();
       if (existing.length > 0) select(existing[0].id);
       else newThread();
     })();
@@ -57,9 +101,12 @@ export default function Chat({ model, provider }: { model: string; provider: str
 
   // Machine status drives the desktop button, and it appears mid-run, so poll.
   useEffect(() => {
-    const tick = setInterval(() => { void refreshThreads(); }, 4000);
+    const tick = setInterval(() => { 
+      void refreshThreads(); 
+      void refreshAccount();
+    }, 4000);
     return () => clearInterval(tick);
-  }, [refreshThreads]);
+  }, [refreshThreads, refreshAccount]);
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -99,30 +146,54 @@ export default function Chat({ model, provider }: { model: string; provider: str
     setInput('');
   }
 
+  const renderView = showSettings ? 'settings' 
+    : showMachines ? 'machines' 
+    : showSnapshots ? 'snapshots'
+    : 'chat';
+
   return (
     <div className={`shell ${showDesktop ? 'split' : ''}`}>
       <Threads
         threads={threads}
         current={threadId}
         machines={machines}
-        onSelect={(id) => { setShowMachines(false); select(id); }}
-        onNew={() => { setShowMachines(false); newThread(); }}
+        onSelect={(id) => { setShowMachines(false); setShowSettings(false); setShowSnapshots(false); select(id); }}
+        onNew={() => { setShowMachines(false); setShowSettings(false); setShowSnapshots(false); newThread(); }}
         onDelete={removeThread}
-        onShowMachines={() => setShowMachines((s) => !s)}
+        onShowMachines={() => { setShowMachines((s) => !s); setShowSettings(false); setShowSnapshots(false); }}
         showingMachines={showMachines}
       />
 
-      {showMachines && (
+      {renderView === 'settings' && (
+        <Settings onClose={() => setShowSettings(false)} />
+      )}
+
+      {renderView === 'machines' && (
         <Machines
           onClose={() => setShowMachines(false)}
           onOpenThread={(id) => { setShowMachines(false); select(id); }}
         />
       )}
 
-      {!showMachines && <main className="conversation">
+      {renderView === 'snapshots' && (
+        <Snapshots
+          computerId={machineId}
+          onClose={() => setShowSnapshots(false)}
+        />
+      )}
+
+      {renderView === 'chat' && <main className="conversation">
         <header className="bar">
           <strong>{thread?.title ?? 'New conversation'}</strong>
-          <span className="muted small">{provider} · {model}</span>
+          <span className="muted small">
+            {backend === 'cloud' ? '☁️ cloud' : '🏠 local'} · {provider} · {model}
+          </span>
+          {account && account.usage && (
+            <span className="muted small" title="Cloud usage">
+              {account.usage.computers_running ?? 0}/{account.usage.computers_limit ?? '∞'} computers · 
+              {account.usage.compute_minutes_used ?? 0}/{account.usage.compute_minutes_limit ?? '∞'} min
+            </span>
+          )}
           <button
             className="ghost"
             disabled={!machineId}
@@ -131,7 +202,25 @@ export default function Chat({ model, provider }: { model: string; provider: str
           >
             {showDesktop ? 'Hide desktop' : 'Show desktop'}
           </button>
+          {backend === 'cloud' && machineId && (
+            <button
+              className="ghost"
+              onClick={() => setShowSnapshots(true)}
+              title="Manage snapshots"
+            >
+              Snapshots
+            </button>
+          )}
+          <button className="ghost" onClick={() => setShowSettings(true)} title="Settings">
+            ⚙️
+          </button>
         </header>
+
+        {usageWarning && (
+          <div className="usage-warning">
+            <strong>⚠️ {usageWarning}</strong>
+          </div>
+        )}
 
         <div className="messages">
           {messages.length === 0 && (
@@ -185,7 +274,7 @@ export default function Chat({ model, provider }: { model: string; provider: str
         </form>
       </main>}
 
-      {showDesktop && threadId && !showMachines && (
+      {showDesktop && threadId && renderView === 'chat' && (
         <DesktopPanel threadId={threadId} onClose={() => setShowDesktop(false)} />
       )}
     </div>
