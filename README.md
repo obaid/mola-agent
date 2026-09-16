@@ -1,8 +1,8 @@
 # mola-agent
 
-**Watch an agent use a real computer.**
+**Watch an agent use a real Omarchy computer.**
 
-A chat app that gives an agent a real [Omarchy](https://omarchy.org) desktop. Run computers locally with `mola-core` or in the cloud with `cloud.mola.sh`. The agent works on it, you see the screen while it does, and you can take the mouse whenever you want.
+A chat app that gives an agent a real [Omarchy](https://omarchy.org) computer. Run Omarchy locally with `mola-core` or in the cloud with `cloud.mola.sh`. The agent works on it, you see the screen while it does, and you can take the mouse whenever you want.
 
 ```sh
     10|npx mola-agent         # this app
@@ -15,7 +15,7 @@ Open a browser, pick a model and backend, then talk to it.
 
 ### Local Mode (Default)
 
-Run computers on your own hardware:
+Run Omarchy computers on your own hardware:
 
     20|```sh
 npx mola-core          # Terminal 1 - start engine
@@ -28,7 +28,7 @@ npx mola-agent         # Terminal 2 - start app
 
 ### Cloud Mode
 
-    30|Run persistent computers on `cloud.mola.sh`:
+    30|Run persistent Omarchy computers on `cloud.mola.sh`:
 
 ```sh
 # Authenticate once
@@ -51,7 +51,7 @@ The setup wizard lets you choose. Switch anytime in **Settings** (⚙️ button)
 
     50|## What it does
 
-The agent has a real Linux machine and sixteen ways to use it. It prefers the
+The agent has a real Omarchy computer and sixteen ways to use it. It prefers the
 shell, because almost everything is faster there, and drives the desktop when the
 task is genuinely graphical.
 
@@ -70,14 +70,14 @@ Your mouse and keyboard work there, so you can take over mid-task and hand back.
 | | Local | Cloud |
 |---|---|---|
 | **Setup** | `npx mola-core` | `npx mola-cloud login` |
-| **Backend** | Runs locally (QEMU) | Runs on cloud.mola.sh |
+| **Where** | Omarchy on your machine | Omarchy on cloud.mola.sh |
     70|| **Persistence** | Stops auto-delete after idle | Computers persist, auto-stop when idle |
 | **Cost** | Free (your hardware) | Usage-based (10h free/month) |
 | **Auto-stop** | 15 minutes idle | 30 min (free) or 60 min (paid) |
 | **Snapshots** | No | Yes |
 | **Requirements** | 4+ GB RAM per machine | MOLA_TOKEN only |
 
-In cloud mode, each conversation gets its own persistent computer (or share one across all conversations — see Config).
+In cloud mode, each conversation gets its own persistent Omarchy computer (or share one across all conversations — see Config).
 
 ## What you need
 
@@ -159,14 +159,14 @@ Config lives at `~/.mola-agent/config.json`:
    150|### Local mode
 ```
 browser  ─────►  this app's server  ─────►  mola-core :4141  ──►  QEMU
- chat UI          agent loop, tools          REST API            (local VM)
+ chat UI          agent loop, tools          REST API         (Omarchy, local)
  iframe ──────────────────────────────────►  /desktop
 ```
 
 ### Cloud mode
 ```
 browser  ─────►  this app's server  ─────►  cloud.mola.sh  ──►  QEMU
-   160| chat UI          agent loop, tools          REST API          (cloud VM)
+   160| chat UI          agent loop, tools          REST API       (Omarchy, cloud)
  iframe ──────────────────────────────────►  /desktop/sessions
 ```
 
