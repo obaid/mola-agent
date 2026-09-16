@@ -49,6 +49,14 @@ claude mcp add mola -- npx -y mola-core mcp
 This app exists for the thing MCP cannot do: showing you the desktop beside the
 conversation while the agent works.
 
+## Cloud mode (coming soon)
+
+mola-agent will support **cloud.mola.sh** alongside local mola-core, giving you
+persistent cloud computers instead of throwaway VMs. The architecture and
+integration plan are documented in [`docs/`](docs/SUMMARY.md).
+
+To follow progress or contribute: see [`docs/cloud-integration-plan.md`](docs/cloud-integration-plan.md).
+
 ## How it fits together
 
 ```
