@@ -12,6 +12,8 @@ import { act, createMachine, deleteMachine, desktopUrl, getMachine, listMachines
 
 export type Session = {
   machineId: string | null;
+  /** Thread ID for stable computer naming in cloud mode */
+  threadId?: string;
   /** Pushed to the UI so the desktop panel can open itself at the right moment. */
   onMachine?: (id: string) => void;
   /** Called whenever the machine is used, so the idle reaper knows it is alive. */
@@ -56,6 +58,40 @@ async function screen<T>(run: () => Promise<T>): Promise<T> {
 
 async function ensureMachine(session: Session) {
   session.onActivity?.();
+  
+  // Cloud mode: try to reuse persistent computer by name
+  const isCloud = process.env.MOLA_BACKEND === 'cloud';
+  if (isCloud && session.threadId) {
+    const computerName = `agent-${session.threadId}`;
+    
+    // Look for existing computer with this name
+    const computers = await listMachines().catch(() => []);
+    const existing = computers.find((c: any) => c.name === computerName);
+    
+    if (existing) {
+      if (existing.status === 'stopped') {
+        await startMachine(existing.id);
+        await waitForReady(existing.id);
+      } else if (existing.status === 'ready') {
+        // Already ready, use it
+      } else {
+        // Booting or other transient state, wait for it
+        await waitForReady(existing.id);
+      }
+      session.machineId = existing.id;
+      session.onMachine?.(existing.id);
+      return existing.id;
+    }
+    
+    // No existing computer, create new one with stable name
+    const machine = await createMachine({ name: computerName });
+    const ready = await waitForReady(machine.id);
+    session.machineId = ready.id;
+    session.onMachine?.(ready.id);
+    return ready.id;
+  }
+  
+  // Local mode: original behavior (reuse session ID or create throwaway)
   if (session.machineId) {
     // A thread resumed after the idle reaper stopped its machine should just
     // work, at the cost of the same boot wait as the first time.
@@ -68,6 +104,7 @@ async function ensureMachine(session: Session) {
     }
     if (session.machineId) return session.machineId;
   }
+  
   const machine = await createMachine({ name: 'agent' });
   const ready = await waitForReady(machine.id);
   session.machineId = ready.id;
@@ -114,8 +151,8 @@ export function buildTools(session: Session) {
         }
         return {
           exit_code: result.exit_code,
-          stdout: result.stdout.slice(0, 8000),
-          stderr: result.stderr.slice(0, 2000),
+          stdout: (result.stdout || '').slice(0, 8000),
+          stderr: (result.stderr || '').slice(0, 2000),
         };
       },
     }),
@@ -153,7 +190,7 @@ export function buildTools(session: Session) {
           timeout: 30,
           command: `if [ -f ${log}.pid ] && kill -0 "$(cat ${log}.pid)" 2>/dev/null; then echo RUNNING; else echo FINISHED; fi; echo '---'; tail -n ${lines ?? 40} ${log} 2>/dev/null || echo '(no output yet)'`,
         });
-        const [state, ...rest] = result.stdout.split('\n---\n');
+        const [state, ...rest] = (result.stdout || '').split('\n---\n');
         return { running: state.trim() === 'RUNNING', output: rest.join('\n---\n').trimEnd().slice(0, 8000) };
       },
     }),
@@ -164,7 +201,7 @@ export function buildTools(session: Session) {
       execute: async ({ path }) => {
         const id = await ensureMachine(session);
         const result = await act(id, { action: 'read_file', path });
-        return { content: Buffer.from(result.content_base64, 'base64').toString('utf8').slice(0, 20_000) };
+        return { content: Buffer.from(result.content_base64 || '', 'base64').toString('utf8').slice(0, 20_000) };
       },
     }),
 
