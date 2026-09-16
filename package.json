@@ -2,7 +2,7 @@
   "name": "mola-agent",
   "version": "1.0.1",
   "type": "module",
-  "description": "A local chat app whose agent drives a throwaway Omarchy computer.",
+  "description": "A chat app whose agent drives a real Omarchy computer, local or cloud.",
   "homepage": "https://mola.sh",
   "license": "FSL-1.1-ALv2",
   "repository": {
