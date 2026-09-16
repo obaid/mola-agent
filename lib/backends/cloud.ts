@@ -104,7 +104,7 @@ export class CloudMolaBackend implements ComputerBackend {
 
     const body = {
       name: spec.name,
-      profile: 'small',
+      profile: 'pilot-2c-4g',
       auto_stop_minutes: autoStop,
     };
 
@@ -226,7 +226,7 @@ export class CloudMolaBackend implements ComputerBackend {
       );
       const op = response.data;
 
-      if (op.status === 'completed') return;
+      if (op.status === 'completed' || op.status === 'succeeded') return;
       if (op.status === 'failed') {
         throw new Error(op.error_message || 'Operation failed');
       }
