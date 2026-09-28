@@ -9,11 +9,6 @@ import type { NextConfig } from 'next';
 const config: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: __dirname,
-  // Dynamic file reads must not pull previous bundles or development evidence
-  // back into the standalone output on subsequent builds.
-  outputFileTracingExcludes: {
-    '**': ['./server/**/*', './artifacts/**/*', './test/**/*', './docs/**/*', './*.tgz'],
-  },
   devIndicators: false,
 };
 
