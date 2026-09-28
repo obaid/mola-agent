@@ -44,6 +44,11 @@ if (!existsSync(join(out, 'server.js'))) {
   process.exit(1);
 }
 
+if (['server', 'artifacts', 'test', 'docs'].some((dir) => existsSync(join(out, dir)))) {
+  console.error('The bundle contains a previous build or development files. Check outputFileTracingExcludes before publishing.');
+  process.exit(1);
+}
+
 function bytes(dir) {
   let total = 0;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

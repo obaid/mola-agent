@@ -33,6 +33,10 @@ test('the packaged tarball installs, boots and serves every asset', { skip: buil
     cwd: root, encoding: 'utf8',
   }).trim().split('\n').pop();
 
+  const contents = execFileSync('tar', ['-tzf', join(scratch, tarball)], { encoding: 'utf8' }).split('\n');
+  assert.equal(contents.some((file) => /^package\/server\/(server|artifacts|test|docs)\//.test(file)), false,
+    'standalone must not contain previous bundles or development evidence');
+
   execFileSync('npm', ['init', '-y'], { cwd: scratch, stdio: 'ignore' });
   execFileSync('npm', ['install', join(scratch, tarball), '--silent'], { cwd: scratch, stdio: 'ignore' });
 
@@ -47,7 +51,7 @@ test('the packaged tarball installs, boots and serves every asset', { skip: buil
     env: { ...process.env, PORT: String(port), MOLA_AGENT_NO_OPEN: '1', MOLA_AGENT_BOOTSTRAP: '0', MOLA_AGENT_HOME: join(scratch, 'home'), MOLA_BACKEND: 'local', MOLA_PORT: '4999' },
     stdio: 'ignore',
   });
-  t.after(() => child.kill('SIGKILL'));
+  t.after(() => child.kill('SIGTERM'));
 
   const base = `http://127.0.0.1:${port}`;
   let up = false;
