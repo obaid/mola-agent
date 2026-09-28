@@ -11,6 +11,7 @@
 - Keep provider streams on HTTP/1.1 to avoid observed HTTP/2 interruptions.
 - Include the cloud backend, settings, profiles and snapshot features already on main.
 - Reconcile local desktop URLs and backend selection across tools, viewing and cleanup.
+- Restore local machine listings after the backend refactor.
 
 The hands-on Muse comparison records successful tests and remaining quality limits
 in `docs/muse-comparison-2026-09-27.md`. Travel planning still requires verification.

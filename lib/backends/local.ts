@@ -77,7 +77,7 @@ export class LocalCoreBackend implements ComputerBackend {
 
   async listComputers(): Promise<Computer[]> {
     const result = await this.call('GET', '/v1/machines');
-    return Array.isArray(result) ? result.map(this.normalizeComputer) : [];
+    return Array.isArray(result) ? result.map((computer) => this.normalizeComputer(computer)) : [];
   }
 
   async getComputer(id: string): Promise<Computer> {
