@@ -1,5 +1,6 @@
 'use client';
 
+import CloudDesktop from './CloudDesktop';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
@@ -20,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 const HEARTBEAT_MS = 30_000;
 
 export default function DesktopPanel({ threadId, onClose }: { threadId: string; onClose: () => void }) {
+  const [grant, setGrant] = useState<{ relay_url: string } | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('unknown');
@@ -28,6 +30,7 @@ export default function DesktopPanel({ threadId, onClose }: { threadId: string; 
   const mint = useCallback(async () => {
     setError(null);
     setUrl(null);
+    setGrant(null);
     const response = await fetch('/api/desktop', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -39,15 +42,8 @@ export default function DesktopPanel({ threadId, onClose }: { threadId: string; 
     // anything appended lands inside it and the viewer reads a corrupted
     // ticket. Every mint is a new random ticket anyway, so the URL already
     // differs, and `key={url}` remounts the iframe.
-    setUrl(body.url);
-    
-    // Cloud sessions need refresh; local tickets are single-use
-    if (body.needsRefresh && body.refreshAfter) {
-      const delay = body.refreshAfter - Date.now();
-      if (delay > 0) {
-        setTimeout(() => void mint(), delay);
-      }
-    }
+    if (body.session) setGrant(body.session);
+    else setUrl(body.url);
   }, [threadId]);
 
   useEffect(() => { void mint(); }, [mint]);
@@ -71,7 +67,7 @@ export default function DesktopPanel({ threadId, onClose }: { threadId: string; 
 
       const { status: now } = await response.json();
       setStatus(now);
-      if (previous.current !== 'ready' && now === 'ready') void mint();
+      if (previous.current !== 'unknown' && previous.current !== 'ready' && now === 'ready') void mint();
       previous.current = now;
     };
 
@@ -80,7 +76,7 @@ export default function DesktopPanel({ threadId, onClose }: { threadId: string; 
     return () => { cancelled = true; clearInterval(timer); };
   }, [threadId, mint]);
 
-  const note = status === 'ready' ? 'live · your mouse and keyboard work here'
+  const note = status === 'ready' ? 'ready · your mouse and keyboard work here'
     : status === 'stopped' ? 'the machine is stopped; it starts again on the next message'
       : status === 'booting' ? 'starting…'
         : 'checking…';
@@ -102,7 +98,8 @@ export default function DesktopPanel({ threadId, onClose }: { threadId: string; 
           allow="clipboard-read; clipboard-write"
         />
       )}
-      {!url && !error && <p className="muted pad">Connecting…</p>}
+      {grant && <CloudDesktop grant={grant} />}
+      {!url && !grant && !error && <p className="muted pad">Connecting…</p>}
     </aside>
   );
 }

@@ -59,7 +59,7 @@ export async function backendStatus() {
       return {
         backend: 'cloud' as const,
         ok: true,
-        detail: `${cloud.cloudBase()} — ${account.email ?? 'authenticated'} (${account.plan ?? 'free'})`,
+        detail: `${cloud.cloudBase()} — connected${account.max_concurrent === undefined ? '' : ` (${account.used_slots ?? 0}/${account.max_concurrent} running slots)`}`,
         account,
       };
     } catch (error: any) {
@@ -94,7 +94,10 @@ export async function listMachines(): Promise<Machine[]> {
       id: c.id,
       name: c.name,
       status: c.status,
-      profile: c.profile,
+      profile: c.profile?.slug,
+      vcpus: c.profile?.vcpus,
+      memory_mb: c.profile?.memory_mb,
+      disk_gb: c.profile?.disk_gb,
       address: c.address,
       created_at: c.created_at,
       auto_stop_minutes: c.auto_stop_minutes,
@@ -123,7 +126,10 @@ export async function getMachine(id: string): Promise<Machine> {
       id: c.id,
       name: c.name,
       status: c.status,
-      profile: c.profile,
+      profile: c.profile?.slug,
+      vcpus: c.profile?.vcpus,
+      memory_mb: c.profile?.memory_mb,
+      disk_gb: c.profile?.disk_gb,
       address: c.address,
       created_at: c.created_at,
       auto_stop_minutes: c.auto_stop_minutes,
@@ -147,11 +153,16 @@ export async function createMachine(spec: { name: string; profile?: string }): P
     };
   } else {
     const config = readConfig();
-    const profile = spec.profile ?? config.cloudProfile ?? 'pilot-2c-4g';
+    const requestedProfile = spec.profile ?? config.cloudProfile;
+    const profiles = await cloud.getProfiles();
+    const profile = requestedProfile || profiles.find((p) => p.slug === 'small')?.id || profiles[0]?.id;
+    if (!profile || !profiles.some((p) => p.id === profile && p.available)) {
+      throw new Error(`Cloud profile ${requestedProfile || '(default)'} is unavailable. Choose an available size in Settings.`);
+    }
     const result = await cloud.createCloudComputer({
       name: spec.name,
       profile,
-      auto_stop_minutes: 60,
+      // Omit auto-stop so Cloud applies the account-appropriate default.
     });
     
     // Wait for operation to complete
@@ -159,12 +170,15 @@ export async function createMachine(spec: { name: string; profile?: string }): P
       await cloud.waitForOperation(result.data.id, result.operation.id);
     }
     
-    const c = result.data;
+    const c = await cloud.getCloudComputer(result.data.id);
     return {
       id: c.id,
       name: c.name,
       status: c.status,
-      profile: c.profile,
+      profile: c.profile?.slug,
+      vcpus: c.profile?.vcpus,
+      memory_mb: c.profile?.memory_mb,
+      disk_gb: c.profile?.disk_gb,
       address: c.address,
       auto_stop_minutes: c.auto_stop_minutes,
     };
@@ -226,7 +240,7 @@ export async function waitForReady(id: string, timeoutMs = 120_000): Promise<Mac
     while (Date.now() < deadline) {
       const machine = await getMachine(id);
       if (machine.status === 'ready' || machine.status === 'running') return machine;
-      if (machine.status === 'stopped' || machine.status === 'failed') {
+      if (['stopped', 'failed', 'error', 'deleted', 'deleting'].includes(machine.status)) {
         throw new Error(`Machine reached "${machine.status}" instead of becoming ready`);
       }
       await new Promise((r) => setTimeout(r, 2000));
@@ -244,8 +258,7 @@ export async function desktopUrl(id: string): Promise<string> {
     const result = await localEngine.desktopUrl(id);
     return result.desktop_url;
   } else {
-    const session = await cloud.createDesktopSession(id);
-    return session.url;
+    return `${new URL(cloud.cloudBase()).origin}/computers/${encodeURIComponent(id)}/desktop`;
   }
 }
 

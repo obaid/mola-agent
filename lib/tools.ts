@@ -53,8 +53,9 @@ async function ensureMachine(session: Session) {
     const computerName = `agent-${session.threadId}`;
     
     // Look for existing computer with this name
-    const computers = await listMachines().catch(() => []);
-    const existing = computers.find((c: any) => c.name === computerName);
+    const computers = await listMachines();
+    const existing = computers.find((c) => c.id === session.machineId)
+      ?? computers.find((c) => c.name === computerName);
     
     if (existing) {
       if (existing.status === 'stopped') {
@@ -105,7 +106,7 @@ export function buildTools(session: Session) {
     create_machine: tool({
       description:
         'Create a fresh Linux computer: Arch Linux with the Hyprland desktop, in its own '
-        + 'virtual machine. Takes about eight seconds to become usable. You only need one '
+        + 'virtual machine. Provisioning can take a few minutes. You only need one '
         + 'per conversation, and the other tools create it automatically, so call this only '
         + 'when the person explicitly asks for a new one.',
       inputSchema: z.object({}),

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.3 — 2026-09-27
+
+- Fix Cloud provisioning: preserve the computer/operation envelope and recognize `succeeded` operations.
+- Parse Cloud resource lists correctly so conversations reuse and resume their computers.
+- Discover account-available profile slugs and use Cloud's default auto-stop policy.
+- Connect the embedded desktop through an authenticated loopback relay to Cloud's noVNC gateway, without periodic forced reconnects.
+- Restore the graphical session environment for Chromium and skip first-run onboarding.
+- Surface API errors and reject malformed responses instead of retrying blind creation.
+- Describe Cloud computers as persistent workspaces and verify cloud lifecycle response contracts.
+
 ## 1.1.2 — 2026-09-27
 
 - Fix the missing Sharp external alias that broke chat in the npm package.

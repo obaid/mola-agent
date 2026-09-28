@@ -8,6 +8,19 @@ function browserCommand(url?: string) {
   return `python3 - ${shellQuote(url ?? '')} <<'PY'
 import json, os, shutil, subprocess, sys, time
 url = sys.argv[1]
+# Automation shells may lack the graphical login's display and session bus.
+try:
+    session_env = subprocess.check_output(['systemctl', '--user', 'show-environment'], text=True)
+    for line in session_env.splitlines():
+        name, _, value = line.partition('=')
+        if name in ('DISPLAY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS'):
+            os.environ[name] = value
+except subprocess.CalledProcessError:
+    pass
+if 'DBUS_SESSION_BUS_ADDRESS' not in os.environ:
+    bus = os.path.join(os.environ.get('XDG_RUNTIME_DIR', '/run/user/' + str(os.getuid())), 'bus')
+    if os.path.exists(bus):
+        os.environ['DBUS_SESSION_BUS_ADDRESS'] = 'unix:path=' + bus
 if not shutil.which('chromium'):
     raise RuntimeError('Chromium is not installed.')
 instances = json.loads(subprocess.check_output(['hyprctl', '-j', 'instances'], text=True))
@@ -17,7 +30,7 @@ if instance is None and instances:
 if instance:
     os.environ['HYPRLAND_INSTANCE_SIGNATURE'] = instance['instance']
     clients = json.loads(subprocess.check_output(['hyprctl', '-j', 'clients'], text=True))
-    windows = [c for c in clients if 'chromium' in (c.get('class', '') + ' ' + c.get('initialClass', '')).lower()]
+    windows = [c for c in clients if 'chromium' in (c.get('class', '') + ' ' + c.get('initialClass', '') + ' ' + c.get('title', '')).lower()]
     if windows:
         window = min(windows, key=lambda c: c.get('focusHistoryID', 99999))
         selector = 'address:' + window['address']
@@ -27,12 +40,12 @@ if instance:
         print(json.dumps({'reused': True}))
         sys.exit(0)
 with open('/tmp/mola-chromium.log', 'a') as log:
-    subprocess.Popen(['chromium'] + ([url] if url else []), stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+    subprocess.Popen(['chromium', '--no-first-run'] + ([url] if url else []), stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
 if instance:
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
         clients = json.loads(subprocess.check_output(['hyprctl', '-j', 'clients'], text=True))
-        if any('chromium' in c.get('class', '').lower() for c in clients):
+        if any('chromium' in (c.get('class', '') + ' ' + c.get('title', '')).lower() for c in clients):
             break
         time.sleep(0.1)
     else:
@@ -42,7 +55,7 @@ PY`;
 }
 
 export async function openChromium(run: Run, url?: string) {
-  const result = await run({ action: 'exec', command: browserCommand(url), timeout: 15 });
+  const result = await run({ action: 'exec', command: browserCommand(url), timeout: 40 });
   if (result.exit_code !== 0 || result.timed_out) {
     return { opened: false, error: String(result.stderr || result.stdout || 'Chromium did not start.').trim() };
   }

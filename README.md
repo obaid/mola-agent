@@ -199,7 +199,7 @@ browser  ─────►  this app's server  ─────►  mola-core :4
 ```
 browser  ─────►  this app's server  ─────►  cloud.mola.sh  ──►  QEMU
  chat UI          agent loop, tools          REST API       (Omarchy, cloud)
- iframe ──────────────────────────────────►  /desktop/sessions
+ noVNC ───────────────────────────────────►  Cloud desktop gateway (WebSocket)
 ```
 
 The server is not optional. It holds the model provider key so the browser never

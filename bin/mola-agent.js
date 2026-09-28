@@ -6,6 +6,9 @@
  * A checkout has no such directory, so this falls back to telling you to build,
  * rather than failing with a missing-file stack trace.
  */
+import { randomBytes } from 'node:crypto';
+import { startDesktopRelay } from './cloud-desktop.js';
+import { cloudApi } from './cloud-auth.js';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { existsSync } from 'node:fs';
@@ -36,10 +39,13 @@ if (!existsSync(server)) {
 }
 
 let child = null;
+let desktopRelay = null;
+let selectedBackend;
 let ownedCore = null;
 let setupChild = null;
 const stop = () => {
   child?.kill('SIGTERM');
+  desktopRelay?.close();
   stopOwned(ownedCore);
   stopOwned(setupChild);
   process.exit(0);
@@ -49,6 +55,7 @@ process.on('SIGTERM', stop);
 
 try {
   const backend = await selectBackend();
+  selectedBackend = backend;
   console.log(`\n  ${bold('Mola Agent')} · ${backend === 'local' ? 'Local' : 'Cloud'} setup`);
   if (!process.argv.includes('--no-bootstrap') && process.env.MOLA_AGENT_BOOTSTRAP !== '0') {
     if (backend === 'local') ownedCore = await ensureLocalCore({ onChild: (process) => { ownedCore = process; } });
@@ -87,12 +94,18 @@ const requested = Number(
 const port = await freePort(requested);
 const url = `http://127.0.0.1:${port}`;
 
+const desktopSecret = randomBytes(32).toString('hex');
+if (selectedBackend === 'cloud') {
+  desktopRelay = await startDesktopRelay({ secret: desktopSecret, origin: url, cloudOrigin: new URL(cloudApi()).origin });
+}
+
 child = spawn(process.execPath, [server], {
   cwd: join(root, 'server'),
   stdio: ['ignore', 'inherit', 'inherit'],
   env: {
     ...process.env,
     PORT: String(port),
+    ...(desktopRelay ? { MOLA_DESKTOP_RELAY_URL: desktopRelay.url, MOLA_DESKTOP_RELAY_SECRET: desktopSecret } : {}),
     // Loopback only. This process can create virtual machines and holds a
     // model provider key; it has no business on a shared interface.
     HOSTNAME: '127.0.0.1',
@@ -130,11 +143,13 @@ const opener = process.platform === 'darwin' ? 'open'
 })();
 
 child.on('error', (error) => {
+  desktopRelay?.close();
   console.error(`Could not launch Mola Agent: ${error.message}`);
   stopOwned(ownedCore);
   process.exit(1);
 });
 child.on('exit', (code) => {
+  desktopRelay?.close();
   stopOwned(ownedCore);
   process.exit(code ?? 0);
 });
