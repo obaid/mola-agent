@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.2 — 2026-09-27
+
+- Fix the missing Sharp external alias that broke chat in the npm package.
+- Build production with Webpack and materialize standalone symlinks for npm.
+- Install Sharp for the user's OS/CPU instead of bundling the build machine's native binary.
+- Verify chat route loading and a real screenshot resize from an installed tarball.
+
 ## 1.1.1 — 2026-09-27
 
 - Exclude previous standalone builds and development evidence from package traces.

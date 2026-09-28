@@ -1,6 +1,6 @@
 {
   "name": "mola-agent",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "type": "module",
   "description": "A chat app whose agent drives a real Omarchy computer, local or cloud.",
   "homepage": "https://mola.sh",
@@ -29,7 +29,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "bundle": "node scripts/bundle.js",
     "start": "node bin/mola-agent.js",
     "test": "node --test --experimental-strip-types test/*.test.js",
@@ -49,9 +49,11 @@
     "react-dom": "19.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "sharp": "^0.35.5",
     "typescript": "5.9.3",
     "undici": "^6.29.0",
     "zod": "^3.25.76"
+  },
+  "dependencies": {
+    "sharp": "0.35.5"
   }
 }

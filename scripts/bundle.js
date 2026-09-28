@@ -32,9 +32,18 @@ mkdirSync(out, { recursive: true });
 const developmentDirs = new Set(['server', 'artifacts', 'test', 'docs']);
 cpSync(standalone, out, {
   recursive: true,
+  // npm pack omits symlinks. Materialize traced aliases so the tarball is
+  // independent of absolute paths in the development checkout.
+  dereference: true,
   filter: (source) => {
     const path = relative(standalone, source);
-    return !developmentDirs.has(path.split(sep)[0]) && !path.endsWith('.tgz');
+    const parts = path.split(sep);
+    // Let npm install Sharp and its native dependencies for the target OS/CPU.
+    // A traced macOS binary must never shadow the installation on Linux.
+    const bundledSharp = parts[0] === 'node_modules' && (
+      parts[1] === 'sharp' || (parts[1] === '@img' && parts[2]?.startsWith('sharp-'))
+    );
+    return !developmentDirs.has(parts[0]) && !bundledSharp && !path.endsWith('.tgz');
   },
 });
 
