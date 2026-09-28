@@ -1,4 +1,4 @@
-import { listMachines, deleteMachine, startMachine, stopMachine } from '@/lib/engine';
+import { listMachines, deleteMachine, startMachine, stopMachine } from '@/lib/backend';
 import { ownedMachines, listThreads } from '@/lib/threads';
 
 export const dynamic = 'force-dynamic';

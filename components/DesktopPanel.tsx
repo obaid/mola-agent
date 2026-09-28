@@ -40,6 +40,14 @@ export default function DesktopPanel({ threadId, onClose }: { threadId: string; 
     // ticket. Every mint is a new random ticket anyway, so the URL already
     // differs, and `key={url}` remounts the iframe.
     setUrl(body.url);
+    
+    // Cloud sessions need refresh; local tickets are single-use
+    if (body.needsRefresh && body.refreshAfter) {
+      const delay = body.refreshAfter - Date.now();
+      if (delay > 0) {
+        setTimeout(() => void mint(), delay);
+      }
+    }
   }, [threadId]);
 
   useEffect(() => { void mint(); }, [mint]);

@@ -1,5 +1,5 @@
 import { clearThread, deleteThread, readThread } from '@/lib/threads';
-import { deleteMachine } from '@/lib/engine';
+import { deleteMachine } from '@/lib/backend';
 
 export const dynamic = 'force-dynamic';
 

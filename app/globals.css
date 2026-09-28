@@ -225,7 +225,8 @@ button.link {
 .bar > .muted { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell.split .conversation > .bar > .muted { display: none; }
 .bar button { flex: none; }
-.conversation > .bar strong { flex: 1; }
+.conversation > .bar { flex-wrap: wrap; }
+.conversation > .bar strong { flex: 1 1 9rem; }
 .bar .clear-chat { color: var(--muted); }
 .clear-confirm {
   position: absolute; z-index: 5; right: 1rem; top: 3.4rem;

@@ -1,4 +1,4 @@
-import { getMachine } from '@/lib/engine';
+import { getMachine } from '@/lib/backend';
 import { readThread, update } from '@/lib/threads';
 
 export const dynamic = 'force-dynamic';
