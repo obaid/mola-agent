@@ -87,6 +87,11 @@ export function update(id: string, patch: Partial<Thread>) {
   return write({ ...thread, ...patch, updatedAt: new Date().toISOString() });
 }
 
+/** Start over in this conversation without discarding its computer. */
+export function clearThread(id: string) {
+  return update(id, { title: 'New conversation', messages: [] });
+}
+
 /** Newest first, without the messages, for the sidebar. */
 export function listThreads() {
   return readdirSync(threadsDir())
@@ -99,6 +104,7 @@ export function listThreads() {
 
 export function deleteThread(id: string) {
   rmSync(fileFor(checkId(id)), { force: true });
+  rmSync(join(configDir(), 'artifacts', id), { recursive: true, force: true });
 }
 
 /** Every machine this app believes it owns, so the reaper never touches anything else. */

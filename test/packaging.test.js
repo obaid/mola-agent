@@ -27,7 +27,9 @@ test('the packaged tarball installs, boots and serves every asset', { skip: buil
   const scratch = mkdtempSync(join(tmpdir(), 'mola-agent-pack-'));
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
 
-  const tarball = execFileSync('npm', ['pack', '--silent', '--pack-destination', scratch], {
+  // Other suites boot this same build concurrently. Packing must not rebuild
+  // and remove chunks underneath their running servers.
+  const tarball = execFileSync('npm', ['pack', '--ignore-scripts', '--silent', '--pack-destination', scratch], {
     cwd: root, encoding: 'utf8',
   }).trim().split('\n').pop();
 

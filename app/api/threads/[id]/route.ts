@@ -1,4 +1,4 @@
-import { deleteThread, readThread } from '@/lib/threads';
+import { clearThread, deleteThread, readThread } from '@/lib/threads';
 import { deleteMachine } from '@/lib/engine';
 
 export const dynamic = 'force-dynamic';
@@ -6,6 +6,17 @@ export const dynamic = 'force-dynamic';
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const thread = readThread(id);
+  if (!thread) return Response.json({ error: 'No such conversation.' }, { status: 404 });
+  return Response.json({ thread });
+}
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const origin = request.headers.get('origin');
+  if (origin && new URL(origin).hostname !== '127.0.0.1' && new URL(origin).hostname !== 'localhost') {
+    return new Response('Cross-origin requests are refused.', { status: 403 });
+  }
+  const { id } = await params;
+  const thread = clearThread(id);
   if (!thread) return Response.json({ error: 'No such conversation.' }, { status: 404 });
   return Response.json({ thread });
 }

@@ -1,5 +1,8 @@
 import { tool } from 'ai';
 import { z } from 'zod';
+import { saveArtifact } from './artifacts';
+import { openChromium } from './browser';
+import { SCREEN, SENT, prepareScreen, screenPoint } from './screen';
 import { asModelMedia, type Shot } from './media';
 import { act, createMachine, deleteMachine, desktopUrl, getMachine, listMachines, startMachine, waitForReady } from './engine';
 
@@ -12,28 +15,15 @@ import { act, createMachine, deleteMachine, desktopUrl, getMachine, listMachines
 
 export type Session = {
   machineId: string | null;
+  threadId?: string;
+  screen?: { width: number; height: number };
   /** Pushed to the UI so the desktop panel can open itself at the right moment. */
   onMachine?: (id: string) => void;
   /** Called whenever the machine is used, so the idle reaper knows it is alive. */
   onActivity?: () => void;
 };
 
-/** The guest's real screen. Coordinates from the model are scaled back to this. */
-export const SCREEN = { width: 1280, height: 800 };
-
-/**
- * What the model is shown.
- *
- * Anthropic recommends about 1024px wide for computer use, and a smaller image
- * is cheaper every single turn. The catch is that the model then answers in
- * *its* coordinate space, so every coordinate coming back has to be scaled up
- * before it reaches the machine. Skip that and every click lands 20% short,
- * which looks like a stupid model rather than a units bug.
- */
-export const SENT = { width: 1024, height: 640 };
-
-const scaleUp = (value: number, axis: 'width' | 'height') =>
-  Math.round(value * (SCREEN[axis] / SENT[axis]));
+export { SCREEN, SENT } from './screen';
 
 /**
  * Retry a screen action once.
@@ -120,6 +110,17 @@ export function buildTools(session: Session) {
       },
     }),
 
+    open_browser: tool({
+      description: 'Use Chromium on the Omarchy desktop. Focus and reuse its existing window and current tab, or launch it if none is open. Optionally navigate that tab to an http(s) URL. Use this instead of launching another browser window.',
+      inputSchema: z.object({ url: z.string().url().refine((value) => /^https?:\/\//i.test(value), 'Use an http(s) URL.').optional() }),
+      execute: async ({ url }) => {
+        const id = await ensureMachine(session);
+        return openChromium((action) => action.action === 'exec'
+          ? act(id, action)
+          : screen(() => act(id, action)), url);
+      },
+    }),
+
     start_task: tool({
       description:
         'Start a command that will take longer than two minutes, such as a package '
@@ -178,6 +179,17 @@ export function buildTools(session: Session) {
       },
     }),
 
+    export_file: tool({
+      description: 'Attach an existing file from this computer to the chat so the user can download it. Use this after creating requested documents, CSVs, images, or other files. Maximum 10 MB. Returns a real download URL; do not invent sandbox: or file: links.',
+      inputSchema: z.object({ path: z.string() }),
+      execute: async ({ path }) => {
+        if (!session.threadId) throw new Error('No conversation for this attachment.');
+        const id = await ensureMachine(session);
+        const result = await act(id, { action: 'read_file', path });
+        return saveArtifact(session.threadId, path, result.content_base64);
+      },
+    }),
+
     /**
      * `toModelOutput` is attached with Object.assign rather than passed to
      * tool(), because ai@7.0.97 cannot typecheck the two together: the
@@ -195,7 +207,9 @@ export function buildTools(session: Session) {
         execute: async (): Promise<Shot> => {
           const id = await ensureMachine(session);
           const shot = await screen(() => act(id, { action: 'screenshot' }));
-          return { mediaType: shot.mime_type as string, data: shot.image_base64 as string };
+          const prepared = await prepareScreen(shot.image_base64);
+          session.screen = prepared.screen;
+          return prepared.shot;
         },
       }),
       {
@@ -211,23 +225,23 @@ export function buildTools(session: Session) {
     click: tool({
       description: `Click the desktop. Coordinates are in the ${SENT.width}x${SENT.height} space of the screenshot.`,
       inputSchema: z.object({
-        x: z.number().int(),
-        y: z.number().int(),
+        x: z.number().int().describe('Screenshot x coordinate, 0 to 1023.'),
+        y: z.number().int().describe('Screenshot y coordinate, 0 to 639.'),
         button: z.number().int().min(1).max(3).optional(),
       }),
       execute: async ({ x, y, button }) => {
         const id = await ensureMachine(session);
-        await screen(() => act(id, { action: 'click', x: scaleUp(x, 'width'), y: scaleUp(y, 'height'), button: button ?? 1 }));
+        await screen(() => act(id, { action: 'click', x: screenPoint(x, 'width', session.screen), y: screenPoint(y, 'height', session.screen), button: button ?? 1 }));
         return { clicked: { x, y } };
       },
     }),
 
     move_mouse: tool({
       description: 'Move the pointer without clicking, to reveal a hover state or to position for a scroll.',
-      inputSchema: z.object({ x: z.number().int(), y: z.number().int() }),
+      inputSchema: z.object({ x: z.number().int().describe('Screenshot x coordinate, 0 to 1023.'), y: z.number().int() }),
       execute: async ({ x, y }) => {
         const id = await ensureMachine(session);
-        await screen(() => act(id, { action: 'move', x: scaleUp(x, 'width'), y: scaleUp(y, 'height') }));
+        await screen(() => act(id, { action: 'move', x: screenPoint(x, 'width', session.screen), y: screenPoint(y, 'height', session.screen) }));
         return { moved: { x, y } };
       },
     }),

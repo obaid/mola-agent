@@ -3,12 +3,29 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import DesktopPanel from './DesktopPanel';
-import ToolCard from './ToolCard';
+import ActivityGroup from './ActivityGroup';
 import Threads, { type ThreadSummary } from './Threads';
 import Machines from './Machines';
 
 type Machine = { id: string; name: string; status: string; threadId: string | null };
+
+function contentGroups(parts: any[]) {
+  const groups: { type: 'text' | 'tools'; parts: any[]; start: number }[] = [];
+  parts.forEach((part, index) => {
+    // The SDK inserts step markers and reasoning between tool calls. Neither
+    // is shown in chat, and neither should split one run into dozens of rows.
+    if (part.type !== 'text' && !part.type?.startsWith('tool-')) return;
+    if (part.type === 'text' && !part.text) return;
+    const type = part.type?.startsWith('tool-') ? 'tools' : 'text';
+    const previous = groups.at(-1);
+    if (type === 'tools' && previous?.type === 'tools') previous.parts.push(part);
+    else groups.push({ type, parts: [part], start: index });
+  });
+  return groups;
+}
 
 export default function Chat({ model, provider }: { model: string; provider: string }) {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
@@ -18,6 +35,9 @@ export default function Chat({ model, provider }: { model: string; provider: str
   const [input, setInput] = useState('');
   const [showDesktop, setShowDesktop] = useState(false);
   const [showMachines, setShowMachines] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
   // The thread id has to reach the server with every message, and changing
@@ -30,7 +50,7 @@ export default function Chat({ model, provider }: { model: string; provider: str
     [threadId],
   );
 
-  const { messages, sendMessage, status, addToolApprovalResponse, stop, setMessages } = useChat({
+  const { messages, sendMessage, status, error, clearError: dismissRunError, addToolApprovalResponse, stop, setMessages } = useChat({
     transport,
     messages: initial as any,
   });
@@ -48,9 +68,13 @@ export default function Chat({ model, provider }: { model: string; provider: str
   // Open the most recent conversation, or start one.
   useEffect(() => {
     (async () => {
-      const existing = await refreshThreads();
-      if (existing.length > 0) select(existing[0].id);
-      else newThread();
+      try {
+        const existing = await refreshThreads();
+        if (existing.length > 0) await select(existing[0].id);
+        else await newThread();
+      } finally {
+        setLoading(false);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -65,18 +89,39 @@ export default function Chat({ model, provider }: { model: string; provider: str
 
   async function select(id: string) {
     const { thread } = await fetch(`/api/threads/${id}`).then((r) => r.json());
+    dismissRunError();
     setThreadId(id);
     setInitial(thread.messages ?? []);
     setMessages((thread.messages ?? []) as any);
     setShowDesktop(false);
+    setConfirmClear(false);
+    setClearError(null);
   }
 
   async function newThread() {
     const { thread } = await fetch('/api/threads', { method: 'POST' }).then((r) => r.json());
     setThreadId(thread.id);
     setInitial([]);
+    dismissRunError();
     setMessages([]);
     setShowDesktop(false);
+    setConfirmClear(false);
+    await refreshThreads();
+  }
+
+  async function clearCurrent() {
+    if (!threadId || busy) return;
+    const response = await fetch(`/api/threads/${threadId}`, { method: 'PATCH' });
+    if (!response.ok) {
+      setClearError('Could not clear this conversation. Please try again.');
+      return;
+    }
+    dismissRunError();
+    setMessages([]);
+    setInitial([]);
+    setInput('');
+    setConfirmClear(false);
+    setClearError(null);
     await refreshThreads();
   }
 
@@ -94,10 +139,12 @@ export default function Chat({ model, provider }: { model: string; provider: str
   const busy = status === 'streaming' || status === 'submitted';
 
   function send() {
-    if (!input.trim() || !threadId) return;
+    if (!input.trim() || !threadId || busy) return;
     sendMessage({ text: input });
     setInput('');
   }
+
+  if (loading) return <main className="centre"><p className="muted">Opening conversation…</p></main>;
 
   return (
     <div className={`shell ${showDesktop ? 'split' : ''}`}>
@@ -124,6 +171,12 @@ export default function Chat({ model, provider }: { model: string; provider: str
           <strong>{thread?.title ?? 'New conversation'}</strong>
           <span className="muted small">{provider} · {model}</span>
           <button
+            className="ghost clear-chat"
+            disabled={!threadId || messages.length === 0 || busy}
+            title={busy ? 'Wait for the agent to finish before clearing' : 'Clear messages in this conversation and keep its computer'}
+            onClick={() => { setConfirmClear((value) => !value); setClearError(null); }}
+          >Clear chat</button>
+          <button
             className="ghost"
             disabled={!machineId}
             title={machineId ? 'Watch the desktop' : 'No machine yet'}
@@ -133,15 +186,23 @@ export default function Chat({ model, provider }: { model: string; provider: str
           </button>
         </header>
 
+        {confirmClear && <div className="clear-confirm" role="dialog" aria-label="Clear this chat">
+          <span>Clear this conversation? Its computer and files stay available.</span>
+          <button onClick={() => void clearCurrent()}>Clear messages</button>
+          <button className="ghost" onClick={() => setConfirmClear(false)}>Cancel</button>
+        </div>}
+        {clearError && <p className="error clear-error">{clearError}</p>}
+
         <div className="messages">
           {messages.length === 0 && (
             <div className="empty">
-              <p>Ask for something that needs a computer.</p>
+              <p>What would you like me to handle?</p>
+              <p className="small">I can browse, research, write, and use a computer you can watch.</p>
               <ul>
                 {[
-                  'Install neovim and show me it running.',
-                  'What OS and kernel is this machine running?',
-                  'Open the browser and look up the Hyprland release notes.',
+                  'Open Chromium and summarize a web page for me.',
+                  'Research a product and compare a few options.',
+                  'Make a checklist for my next trip.',
                 ].map((suggestion) => (
                   <li key={suggestion} onClick={() => setInput(suggestion)}>{suggestion}</li>
                 ))}
@@ -149,23 +210,35 @@ export default function Chat({ model, provider }: { model: string; provider: str
             </div>
           )}
 
-          {messages.map((message) => (
-            <article key={message.id} className={`msg ${message.role}`}>
-              {message.parts.map((part: any, index: number) => {
-                if (part.type === 'text') return <p key={index}>{part.text}</p>;
-                if (part.type?.startsWith('tool-')) {
-                  return (
-                    <ToolCard
-                      key={index}
-                      part={part}
-                      onApprove={(id, approved) => addToolApprovalResponse({ id, approved })}
-                    />
-                  );
-                }
-                return null;
+          {messages.map((message) => {
+            const groups = contentGroups(message.parts);
+            const lastTools = groups.reduce((last, group, index) => group.type === 'tools' ? index : last, -1);
+            return <article key={message.id} className={`msg ${message.role}`}>
+              {groups.map((group, groupIndex) => {
+                if (group.type === 'tools') return <ActivityGroup
+                  key={group.start}
+                  parts={group.parts}
+                  onApprove={(id, approved) => addToolApprovalResponse({ id, approved })}
+                  showPreview={groupIndex === lastTools}
+                  onShowDesktop={machineId ? () => setShowDesktop(true) : undefined}
+                />;
+                return group.parts.map((part: any, index: number) => part.type === 'text' && part.text
+                  ? <div key={`${group.start}-${index}`} className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                    a: (props) => <a {...props} target="_blank" rel="noreferrer" />,
+                  }}>{part.text}</ReactMarkdown></div>
+                  : null);
               })}
-            </article>
-          ))}
+            </article>;
+          })}
+          {busy && <div className="working" role="status"><span className="activity-pulse" aria-hidden="true" /> Mola is working… <span className="muted">Open activity details or show the desktop to follow along.</span></div>}
+          {error && <div className="run-error" role="alert">
+            <strong>The task was interrupted.</strong>
+            <p>{error.message || 'The connection failed. Your conversation and computer are still available.'}</p>
+            <button disabled={busy} onClick={() => {
+              dismissRunError();
+              sendMessage({ text: 'Continue the interrupted task. Inspect the existing work before repeating any actions.' });
+            }}>Continue task</button>
+          </div>}
           <div ref={bottom} />
         </div>
 
@@ -173,7 +246,7 @@ export default function Chat({ model, provider }: { model: string; provider: str
           <textarea
             value={input}
             rows={1}
-            placeholder="Ask for something that needs a computer…"
+            placeholder="Message Mola…"
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }

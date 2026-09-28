@@ -15,18 +15,27 @@ It opens a browser, asks which model you want to use, and then you talk to it.
 
 ## What it does
 
-The agent has a real Linux machine and sixteen ways to use it. It prefers the
+The agent has a real Linux machine and tools to use it. It prefers the
 shell, because almost everything is faster there, and drives the desktop when the
 task is genuinely graphical.
 
 | | |
 |---|---|
 | Shell | run a command, start a long job and poll it, read and write files |
+| Files | attach generated files to chat for download (up to 10 MB) |
 | Screen | look at it, click, type, press keys, scroll |
 | Machines | create, stop, start, delete |
 
 Press **Show desktop** and the live screen slides in beside the conversation.
 Your mouse and keyboard work there, so you can take over mid-task and hand back.
+Computer activity stays compact in chat. Expand an activity to inspect individual
+actions, and expand an action to see its output or screenshot. Approval requests
+stay visible. **Clear chat** starts over in the current conversation while keeping
+its computer and files; **New** creates a separate conversation and computer.
+Web tasks reuse the installed Chromium browser and current tab on the Omarchy
+desktop. Answers render Markdown, including tables and code. Generated files
+appear as download attachments. Interrupted runs show their error and a
+**Continue task** action.
 
 ## What you need
 
@@ -64,11 +73,13 @@ anyway, and an agent run takes minutes and has to survive a reload.
 The iframe is the one thing that talks to the engine directly, because it loads a
 document rather than making a request.
 
-Three details are worth knowing if you are reading the source:
+A few details are worth knowing if you are reading the source:
 
 - **Screenshots are sent at 1024 wide**, because that is what vision models are
   tuned for and it is cheaper every turn. Coordinates coming back are scaled up
   before they reach the machine. Get that wrong and every click lands short.
+- **Model requests use HTTP/1.1** to avoid destroyed HTTP/2 sessions on newer
+  Node versions during long tool loops.
 - **Desktop tickets are single use and live sixty seconds.** They are minted when
   the panel opens, not when a machine is created, and again when a stopped
   machine comes back.
@@ -84,7 +95,7 @@ npm run build && npm run bundle && npm test
 ```
 
 `npm test` packs the tarball, installs it, boots it and checks that every asset
-the page references resolves. It takes about forty seconds and it is the most
+the page references resolves. It takes about a minute and it is the most
 important test here: Next's standalone output fails quietly, serving HTML while
 every stylesheet 404s.
 
@@ -92,3 +103,8 @@ every stylesheet 404s.
 
 [FSL-1.1-ALv2](LICENSE.md). Use it for anything except building something that
 competes with Mola. Each release becomes Apache 2.0 two years after it ships.
+
+## Hands-on comparison
+
+See [the Muse comparison report](docs/muse-comparison-2026-09-27.md) for matched
+tasks, observed failures, fixes, and practical limits.

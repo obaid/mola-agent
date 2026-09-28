@@ -1,3 +1,4 @@
+import { Agent, fetch as undiciFetch } from 'undici';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
@@ -83,9 +84,17 @@ async function describe(response: Response) {
   }
 }
 
+// Node versions with HTTP/2 enabled by default can leave long tool-loop streams
+// attached to a destroyed session. Keep provider requests on HTTP/1.1.
+const providerDispatcher = new Agent({ allowH2: false });
+const providerFetch = ((input: Parameters<typeof undiciFetch>[0], init: Parameters<typeof undiciFetch>[1]) => undiciFetch(input, {
+  ...init,
+  dispatcher: providerDispatcher,
+})) as unknown as typeof fetch;
+
 /** Build a model handle the agent can use. */
 export function modelFor(provider: ProviderId, apiKey: string, model: string) {
-  if (provider === 'anthropic') return createAnthropic({ apiKey })(model);
-  if (provider === 'openai') return createOpenAI({ apiKey })(model);
-  return createOpenRouter({ apiKey })(model);
+  if (provider === 'anthropic') return createAnthropic({ apiKey, fetch: providerFetch })(model);
+  if (provider === 'openai') return createOpenAI({ apiKey, fetch: providerFetch })(model);
+  return createOpenRouter({ apiKey, fetch: providerFetch })(model);
 }
