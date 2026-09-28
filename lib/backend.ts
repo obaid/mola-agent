@@ -50,7 +50,7 @@ export async function backendStatus() {
       return {
         backend: 'cloud' as const,
         ok: false,
-        detail: 'MOLA_TOKEN not set. Get one from https://cloud.mola.sh',
+        detail: 'Cloud login is missing. Restart with npx mola-agent --backend=cloud to connect.',
       };
     }
     
@@ -242,7 +242,7 @@ export async function desktopUrl(id: string): Promise<string> {
   
   if (backend === 'local') {
     const result = await localEngine.desktopUrl(id);
-    return result.url;
+    return result.desktop_url;
   } else {
     const session = await cloud.createDesktopSession(id);
     return session.url;

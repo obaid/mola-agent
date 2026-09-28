@@ -2,6 +2,7 @@
 // Implements Phase 2+3 cloud features: profiles, snapshots, usage, regions
 
 import { readConfig } from './config';
+import { cloudApi, cloudToken } from '../bin/cloud-auth.js';
 
 export type Backend = 'local' | 'cloud';
 
@@ -15,11 +16,11 @@ export function getBackend(): Backend {
 }
 
 export function getCloudToken(): string | null {
-  return process.env.MOLA_TOKEN ?? null;
+  return cloudToken();
 }
 
 export function cloudBase(): string {
-  return process.env.MOLA_CLOUD_API || 'https://cloud.mola.sh/api/v1';
+  return cloudApi();
 }
 
 class CloudError extends Error {
@@ -37,7 +38,7 @@ async function cloudCall(
 ): Promise<any> {
   const token = getCloudToken();
   if (!token) {
-    throw new CloudError(0, 'MOLA_TOKEN not set. Get one from https://cloud.mola.sh');
+    throw new CloudError(0, 'Cloud login is missing. Run npx mola-cloud login or set MOLA_TOKEN.');
   }
 
   const attempt = async (attemptNum: number): Promise<any> => {

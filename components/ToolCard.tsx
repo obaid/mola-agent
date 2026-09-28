@@ -5,18 +5,19 @@ import { useState } from 'react';
 /**
  * One tool call.
  *
- * Each tool returns a different shape, so rendering only `stdout` throws away
- * exactly the thing worth watching: a package install's progress, or the
- * picture the agent just looked at. What the agent saw, you should see.
+ * Details stay closed until someone asks for them. The activity group tells
+ * them what is happening; this card lets them inspect one action.
  */
 
 const LABELS: Record<string, string> = {
   create_machine: 'new computer',
+  open_browser: 'opened Chromium',
   run_command: 'ran',
   start_task: 'started',
   check_task: 'checking',
   read_file: 'read',
   write_file: 'wrote',
+  export_file: 'attached a file',
   screenshot: 'looked at the screen',
   click: 'clicked',
   move_mouse: 'moved to',
@@ -104,6 +105,10 @@ function Output({ name, output }: { name: string; output: any }) {
     return <span className="badge done">{output.id?.slice(0, 8)} · {output.memory_mb} MB</span>;
   }
 
+  if (name === 'open_browser') {
+    return <span className={output.opened ? 'badge done' : 'badge bad'}>{output.opened ? (output.reused ? 'Reused Chromium window' : 'Chromium opened') : output.error ?? 'Could not open Chromium'}</span>;
+  }
+
   if (name === 'read_file' && output.content) {
     return <pre>{String(output.content).slice(0, 2000)}</pre>;
   }
@@ -120,7 +125,7 @@ export default function ToolCard({
   onApprove: (id: string, approved: boolean) => void;
 }) {
   const name = part.type.replace(/^tool-/, '');
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const running = part.state === 'input-streaming' || part.state === 'input-available';
   const failed = part.state === 'output-error';
   const asking = part.state === 'approval-requested';
@@ -128,10 +133,11 @@ export default function ToolCard({
 
   return (
     <div className={`tool ${failed ? 'failed' : ''} ${asking ? 'asking' : ''}`}>
-      <button className="tool-head" onClick={() => setOpen((o) => !o)}>
+      <button type="button" className="tool-head" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <code>{asking ? (PENDING[name] ?? `wants to ${name}`) : (LABELS[name] ?? name)}</code>
         {summary && <span className="muted small">{summary}</span>}
         {running && <span className="spin" aria-label="running" />}
+        <span className="tool-expand">{open ? '−' : '+'}</span>
       </button>
 
       {asking && (

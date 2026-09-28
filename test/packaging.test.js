@@ -27,7 +27,9 @@ test('the packaged tarball installs, boots and serves every asset', { skip: buil
   const scratch = mkdtempSync(join(tmpdir(), 'mola-agent-pack-'));
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
 
-  const tarball = execFileSync('npm', ['pack', '--silent', '--pack-destination', scratch], {
+  // Other suites boot this same build concurrently. Packing must not rebuild
+  // and remove chunks underneath their running servers.
+  const tarball = execFileSync('npm', ['pack', '--ignore-scripts', '--silent', '--pack-destination', scratch], {
     cwd: root, encoding: 'utf8',
   }).trim().split('\n').pop();
 
@@ -42,7 +44,7 @@ test('the packaged tarball installs, boots and serves every asset', { skip: buil
   const port = await freePort();
   const child = spawn(join(scratch, 'node_modules', '.bin', 'mola-agent'), [], {
     cwd: scratch,
-    env: { ...process.env, PORT: String(port), MOLA_AGENT_NO_OPEN: '1' },
+    env: { ...process.env, PORT: String(port), MOLA_AGENT_NO_OPEN: '1', MOLA_AGENT_BOOTSTRAP: '0', MOLA_AGENT_HOME: join(scratch, 'home'), MOLA_BACKEND: 'local', MOLA_PORT: '4999' },
     stdio: 'ignore',
   });
   t.after(() => child.kill('SIGKILL'));

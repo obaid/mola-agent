@@ -11,6 +11,7 @@ import { createServer } from 'node:net';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { selectBackend, ensureLocalCore, ensureCloud, stopOwned } from './bootstrap.js';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const server = join(root, 'server', 'server.js');
@@ -20,10 +21,44 @@ const bold = (s) => `${ESC}1m${s}${ESC}0m`;
 const dim = (s) => `${ESC}2m${s}${ESC}0m`;
 const green = (s) => `${ESC}32m${s}${ESC}0m`;
 
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log('Usage: npx mola-agent [--setup] [--backend=local|cloud] [--port=3939] [--no-bootstrap]');
+  console.log('First run chooses Local or Cloud. Local automatically starts or reuses Mola Core.');
+  console.log('Cloud connects with mola-cloud login. Model setup finishes in the browser before chat opens.');
+  process.exit(0);
+}
+
 if (!existsSync(server)) {
   console.error(`\nNo built server at ${server}.\n`);
   console.error('In a checkout, build it first:\n');
   console.error('  npm install && npm run build && npm run bundle\n');
+  process.exit(1);
+}
+
+let child = null;
+let ownedCore = null;
+let setupChild = null;
+const stop = () => {
+  child?.kill('SIGTERM');
+  stopOwned(ownedCore);
+  stopOwned(setupChild);
+  process.exit(0);
+};
+process.on('SIGINT', stop);
+process.on('SIGTERM', stop);
+
+try {
+  const backend = await selectBackend();
+  console.log(`\n  ${bold('Mola Agent')} · ${backend === 'local' ? 'Local' : 'Cloud'} setup`);
+  if (!process.argv.includes('--no-bootstrap') && process.env.MOLA_AGENT_BOOTSTRAP !== '0') {
+    if (backend === 'local') ownedCore = await ensureLocalCore({ onChild: (process) => { ownedCore = process; } });
+    else await ensureCloud({ onChild: (process) => { setupChild = process; } });
+  }
+  setupChild = null;
+} catch (error) {
+  stopOwned(ownedCore);
+  stopOwned(setupChild);
+  console.error(`\nSetup could not finish: ${error.message}\n`);
   process.exit(1);
 }
 
@@ -52,7 +87,7 @@ const requested = Number(
 const port = await freePort(requested);
 const url = `http://127.0.0.1:${port}`;
 
-const child = spawn(process.execPath, [server], {
+child = spawn(process.execPath, [server], {
   cwd: join(root, 'server'),
   stdio: ['ignore', 'inherit', 'inherit'],
   env: {
@@ -94,10 +129,12 @@ const opener = process.platform === 'darwin' ? 'open'
   }
 })();
 
-const stop = () => {
-  child.kill('SIGTERM');
-  process.exit(0);
-};
-process.on('SIGINT', stop);
-process.on('SIGTERM', stop);
-child.on('exit', (code) => process.exit(code ?? 0));
+child.on('error', (error) => {
+  console.error(`Could not launch Mola Agent: ${error.message}`);
+  stopOwned(ownedCore);
+  process.exit(1);
+});
+child.on('exit', (code) => {
+  stopOwned(ownedCore);
+  process.exit(code ?? 0);
+});

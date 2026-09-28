@@ -122,7 +122,7 @@ export default function Wizard({
             </div>
             <div className={`status ${backendOk ? 'ok' : 'bad'}`}>
               <span className={backendOk ? 'tick' : 'cross'}>{backendOk ? 'ready' : 'not ready'}</span>
-              <p className="muted">{backend.detail}</p>
+              <p className="muted">{selectedBackend === backend.backend ? backend.detail : `Restart with npx mola-agent --backend=${selectedBackend} to set up this backend.`}</p>
             </div>
             {selectedBackend === 'local' && !backendOk && (
               <p className="muted">
@@ -131,7 +131,8 @@ export default function Wizard({
             )}
             {selectedBackend === 'cloud' && !backendOk && (
               <p className="muted">
-                Set MOLA_TOKEN environment variable. Get one from <a href="https://cloud.mola.sh" target="_blank" rel="noreferrer">cloud.mola.sh</a>
+                Restart with <code>npx mola-agent --backend=cloud</code> to connect
+                through browser login, or set MOLA_TOKEN from <a href="https://cloud.mola.sh" target="_blank" rel="noreferrer">cloud.mola.sh</a>.
               </p>
             )}
             {backendOk && (

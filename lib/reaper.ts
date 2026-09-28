@@ -1,4 +1,4 @@
-import { getMachine, listMachines, stopMachine } from './engine';
+import { getBackend, getMachine, listMachines, stopMachine } from './backend';
 import { ownedMachines } from './threads';
 
 /**
@@ -18,6 +18,8 @@ const SWEEP_MS = 60 * 1000;
 let timer: NodeJS.Timeout | null = null;
 
 async function sweep() {
+  // Cloud computers use their configured server-side auto-stop policy.
+  if (getBackend() === 'cloud') return;
   let owned;
   try {
     owned = ownedMachines();

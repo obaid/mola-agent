@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -78,6 +78,27 @@ test('a conversation is created, listed, read and deleted', { skip: built ? fals
   const removed = await json(`/api/threads/${id}`, { method: 'DELETE' });
   assert.equal(removed.body.deleted, true);
   assert.equal((await json(`/api/threads/${id}`)).status, 404);
+});
+
+test('clearing a conversation keeps its identity and computer', { skip: built ? false : 'build first' }, async () => {
+  const { thread } = (await json('/api/threads', { method: 'POST' })).body;
+  const file = join(home, 'threads', `${thread.id}.json`);
+  writeFileSync(file, JSON.stringify({
+    ...thread,
+    title: 'Earlier request',
+    machineId: 'machine-to-keep',
+    messages: [{ id: 'old-message', role: 'user', parts: [{ type: 'text', text: 'Hello' }] }],
+  }));
+
+  const cleared = await json(`/api/threads/${thread.id}`, { method: 'PATCH' });
+  assert.equal(cleared.status, 200);
+  assert.equal(cleared.body.thread.id, thread.id);
+  assert.equal(cleared.body.thread.machineId, 'machine-to-keep');
+  assert.equal(cleared.body.thread.title, 'New conversation');
+  assert.deepEqual(cleared.body.thread.messages, []);
+  assert.deepEqual((await json(`/api/threads/${thread.id}`)).body.thread.messages, []);
+
+  await json(`/api/threads/${thread.id}`, { method: 'DELETE' });
 });
 
 test('conversations come back newest first', { skip: built ? false : 'build first' }, async () => {
@@ -179,4 +200,27 @@ test('watching keeps a machine from being reaped as idle', { skip: built ? false
     'the refreshed stamp should be recent',
   );
   await json(`/api/threads/${thread.id}`, { method: 'DELETE' });
+});
+
+
+test('attachments download real bytes, survive clear, and stay scoped to their conversation', { skip: built ? false : 'build first' }, async () => {
+  const { thread } = (await json('/api/threads', { method: 'POST' })).body;
+  const other = (await json('/api/threads', { method: 'POST' })).body.thread;
+  const id = '11111111-2222-4333-8444-555555555555';
+  const dir = join(home, 'artifacts', thread.id);
+  mkdirSync(dir, { recursive: true });
+  const data = 'product,revenue\r\nBeta,91.00\r\n';
+  writeFileSync(join(dir, `${id}.data`), data);
+  writeFileSync(join(dir, `${id}.json`), JSON.stringify({ filename: 'sales summary.csv', bytes: Buffer.byteLength(data) }));
+  await json(`/api/threads/${thread.id}`, { method: 'PATCH' });
+  const response = await fetch(`${base}/api/files/${thread.id}/${id}`);
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), data);
+  assert.match(response.headers.get('content-disposition'), /attachment;.*sales%20summary.csv/);
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal((await fetch(`${base}/api/files/${other.id}/${id}`)).status, 404);
+  assert.equal((await fetch(`${base}/api/files/${thread.id}/not-a-file`)).status, 404);
+  await json(`/api/threads/${thread.id}`, { method: 'DELETE' });
+  assert.equal((await fetch(`${base}/api/files/${thread.id}/${id}`)).status, 404);
+  await json(`/api/threads/${other.id}`, { method: 'DELETE' });
 });
