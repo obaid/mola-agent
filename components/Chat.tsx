@@ -13,19 +13,7 @@ import Settings from './Settings';
 import Snapshots from './Snapshots';
 
 type Machine = { id: string; name: string; status: string; threadId: string | null };
-type AccountInfo = {
-  email?: string;
-  plan?: string;
-  usage?: {
-    computers_running?: number;
-    computers_limit?: number;
-    compute_minutes_used?: number;
-    compute_minutes_limit?: number;
-    storage_gb_used?: number;
-    storage_gb_limit?: number;
-  };
-  trial?: { active: boolean; expires_at?: string };
-};
+import type { AccountInfo } from '../lib/cloud';
 
 function contentGroups(parts: any[]) {
   const groups: { type: 'text' | 'tools'; parts: any[]; start: number }[] = [];
@@ -234,10 +222,10 @@ export default function Chat({ model, provider, backend }: { model: string; prov
           <span className="muted small">
             {backend === 'cloud' ? '☁️ cloud' : '🏠 local'} · {provider} · {model}
           </span>
-          {account && account.usage && (
+          {account && account.max_concurrent !== undefined && (
             <span className="muted small" title="Cloud usage">
-              {account.usage.computers_running ?? 0}/{account.usage.computers_limit ?? '∞'} computers · 
-              {account.usage.compute_minutes_used ?? 0}/{account.usage.compute_minutes_limit ?? '∞'} min
+              {account.used_slots ?? 0}/{account.max_concurrent} running slots ·
+              {account.computers_count ?? 0}/{account.max_computers ?? '∞'} computers
             </span>
           )}
           <button

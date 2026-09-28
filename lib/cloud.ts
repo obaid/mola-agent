@@ -34,7 +34,8 @@ async function cloudCall(
   path: string,
   body?: unknown,
   timeoutMs = 30_000,
-  retries = 0
+  retries = 0,
+  envelope = false
 ): Promise<any> {
   const token = getCloudToken();
   if (!token) {
@@ -62,7 +63,9 @@ async function cloudCall(
     }
 
     const text = await response.text();
-    const payload = text ? JSON.parse(text) : {};
+    let payload: any;
+    try { payload = text ? JSON.parse(text) : {}; }
+    catch { throw new CloudError(response.status, `Cloud API returned invalid JSON for ${method} ${path} (HTTP ${response.status}).`); }
 
     // Handle 409 concurrent automation with retry
     if (response.status === 409 && attemptNum < retries) {
@@ -72,19 +75,46 @@ async function cloudCall(
     }
 
     if (!response.ok) {
-      const message = payload.message ?? payload.error ?? `HTTP ${response.status}`;
-      throw new CloudError(response.status, message, payload.code);
+      const message = payload.error?.message ?? payload.message
+        ?? (typeof payload.error === 'string' ? payload.error : `HTTP ${response.status}`);
+      throw new CloudError(response.status, message, payload.error?.code ?? payload.code);
     }
 
-    return payload.data ?? payload;
+    return envelope ? payload : (payload.data ?? payload);
   };
 
   return attempt(0);
 }
 
+function collection(payload: any, name: string): any[] {
+  const rows = Array.isArray(payload) ? payload : payload?.[name];
+  if (!Array.isArray(rows)) throw new CloudError(502, `Cloud API returned an invalid ${name} list.`);
+  return rows;
+}
+
+function computer(payload: any): CloudComputer {
+  if (!payload || typeof payload.id !== 'string' || !payload.id || typeof payload.status !== 'string') {
+    throw new CloudError(502, 'Cloud API returned an invalid computer (missing id or status).');
+  }
+  return payload;
+}
+
+type ComputerResult = { data: CloudComputer; operation?: { id: string } };
+
+async function lifecycle(method: string, path: string, body: object, retries = 0): Promise<ComputerResult> {
+  // Lifecycle responses contain BOTH data and operation. Unwrapping data here
+  // loses the operation and made provisioning dereference undefined.data.id.
+  const payload = await cloudCall(method, path, body, 30_000, retries, true);
+  return { data: computer(payload.data), operation: payload.operation };
+}
+
 // --- Account & Usage ---
 
 export type AccountInfo = {
+  max_concurrent?: number;
+  used_slots?: number;
+  max_computers?: number;
+  computers_count?: number;
   email?: string;
   plan?: string;
   usage?: {
@@ -107,6 +137,7 @@ export const getAccount = (): Promise<AccountInfo> => cloudCall('GET', '/account
 
 export type Profile = {
   id: string;
+  slug: string;
   name: string;
   vcpus: number;
   memory_mb: number;
@@ -117,7 +148,7 @@ export type Profile = {
 
 export const getProfiles = async (): Promise<Profile[]> => {
   const response = await cloudCall('GET', '/profiles');
-  return response.profiles ?? [];
+  return collection(response, 'profiles').map((p) => ({ ...p, id: p.slug ?? p.id, available: p.available ?? true }));
 };
 
 // --- Images ---
@@ -130,7 +161,7 @@ export type Image = {
 
 export const getImages = async (): Promise<Image[]> => {
   const response = await cloudCall('GET', '/images');
-  return response.images ?? [];
+  return collection(response, 'images').map((image) => ({ ...image, id: image.slug ?? image.id }));
 };
 
 // --- Computers ---
@@ -139,7 +170,7 @@ export type CloudComputer = {
   id: string;
   name: string;
   status: string;
-  profile?: string;
+  profile?: { slug: string; name?: string; vcpus?: number; memory_mb?: number; disk_gb?: number };
   address?: string | null;
   auto_stop_minutes?: number | null;
   created_at?: string;
@@ -148,28 +179,28 @@ export type CloudComputer = {
 
 export const listCloudComputers = async (): Promise<CloudComputer[]> => {
   const response = await cloudCall('GET', '/computers');
-  return response.computers ?? [];
+  return collection(response, 'computers').map(computer);
 };
 
-export const getCloudComputer = (id: string): Promise<CloudComputer> =>
-  cloudCall('GET', `/computers/${encodeURIComponent(id)}`);
+export const getCloudComputer = async (id: string): Promise<CloudComputer> =>
+  computer(await cloudCall('GET', `/computers/${encodeURIComponent(id)}`));
 
 export const createCloudComputer = (spec: {
   name: string;
   profile: string;
   image?: string;
   auto_stop_minutes?: number;
-}): Promise<{ data: CloudComputer; operation: any }> =>
-  cloudCall('POST', '/computers', spec);
+}): Promise<ComputerResult> =>
+  lifecycle('POST', '/computers', spec);
 
 export const startCloudComputer = (id: string) =>
-  cloudCall('POST', `/computers/${encodeURIComponent(id)}/start`, {}, 30_000, 3);
+  lifecycle('POST', `/computers/${encodeURIComponent(id)}/start`, {}, 3);
 
 export const stopCloudComputer = (id: string) =>
-  cloudCall('POST', `/computers/${encodeURIComponent(id)}/stop`, {}, 30_000, 3);
+  lifecycle('POST', `/computers/${encodeURIComponent(id)}/stop`, {}, 3);
 
 export const restartCloudComputer = (id: string) =>
-  cloudCall('POST', `/computers/${encodeURIComponent(id)}/restart`, {}, 30_000, 3);
+  lifecycle('POST', `/computers/${encodeURIComponent(id)}/restart`, {}, 3);
 
 export const deleteCloudComputer = (id: string) =>
   cloudCall('DELETE', `/computers/${encodeURIComponent(id)}`, undefined, 30_000, 0);
@@ -177,12 +208,16 @@ export const deleteCloudComputer = (id: string) =>
 // --- Desktop Sessions ---
 
 export type DesktopSession = {
-  url: string;
-  expires_at: string;
+  ws_url: string;
+  token: string;
+  expires_in: number;
 };
 
 export const createDesktopSession = async (computerId: string): Promise<DesktopSession> => {
   const response = await cloudCall('POST', `/computers/${encodeURIComponent(computerId)}/desktop-sessions`);
+  if (typeof response.ws_url !== 'string' || typeof response.token !== 'string') {
+    throw new CloudError(502, 'Cloud API returned an invalid desktop session.');
+  }
   return response;
 };
 
@@ -203,7 +238,7 @@ export type Snapshot = {
 
 export const listSnapshots = async (computerId: string): Promise<Snapshot[]> => {
   const response = await cloudCall('GET', `/computers/${encodeURIComponent(computerId)}/snapshots`);
-  return response.snapshots ?? [];
+  return collection(response, 'snapshots');
 };
 
 export const createSnapshot = (computerId: string, name: string) =>
@@ -231,13 +266,13 @@ export const getComputerUsage = async (computerId: string) => {
 export async function waitForOperation(
   computerId: string,
   operationId: string,
-  timeoutMs = 120_000
+  timeoutMs = 180_000
 ): Promise<any> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const op = await getOperation(computerId, operationId);
-    if (op.status === 'completed') return op;
-    if (op.status === 'failed') {
+    if (op.status === 'succeeded' || op.status === 'completed') return op;
+    if (op.status === 'failed' || op.status === 'cancelled') {
       throw new CloudError(500, op.error_message ?? 'Operation failed', op.error_code);
     }
     await new Promise((r) => setTimeout(r, 2000));

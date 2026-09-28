@@ -1,4 +1,5 @@
 import { ToolLoopAgent, stepCountIs } from 'ai';
+import { getBackend } from './backend';
 import { readConfig } from './config';
 import { modelFor } from './providers';
 import { buildTools, type Session, SENT } from './tools';
@@ -12,9 +13,7 @@ import { readThread, update } from './threads';
  * that looks like the model going mad.
  */
 
-const INSTRUCTIONS = `You control a real Linux computer: Arch Linux running the Hyprland desktop, in a virtual machine on the user's own hardware. It is disposable. Nothing on it matters except what you put there, and the user can throw it away and make another in about a second.
-
-How to work on it:
+const INSTRUCTIONS = `How to work on the Omarchy computer:
 
 - Prefer run_command. Almost everything is faster, cheaper and more reliable through a shell than by clicking. Only drive the desktop when the task is genuinely graphical: a browser, a GUI editor, something you must see.
 - That preference loses to what the user actually asked for. If they named the browser, or the screen, or an application, work there and answer from what is on it. Fetching the same page with curl is a different task, and answering from it while claiming to have used the browser is a lie about what you did. If the graphical route is genuinely blocked, say so and say what blocked it before falling back.
@@ -55,7 +54,9 @@ export function buildAgent(session: Session) {
 
   return new ToolLoopAgent({
     model: modelFor(config.provider, config.apiKey, config.model),
-    instructions: INSTRUCTIONS,
+    instructions: (getBackend() === 'cloud'
+      ? "You control a persistent Omarchy Linux computer on Mola Cloud, with the Hyprland desktop, Chromium, terminal and files. The conversation reuses its computer. Stopping preserves its disk; resume it to continue. Preserve existing work. Provisioning can take a few minutes. Never describe this as running on the user's own hardware or as a disposable workspace. A local server URL inside this cloud computer is not accessible on the user's laptop: use a verified public hosting or tunnel URL when asked to share a running app.\n\n"
+      : "You control an Omarchy Linux virtual machine on the user's own hardware, with the Hyprland desktop, Chromium, terminal and files. Preserve existing work unless the user requests its deletion.\n\n") + INSTRUCTIONS,
     tools: buildTools(session),
 
     // The default is 20 steps. Driving a desktop spends one per screenshot and

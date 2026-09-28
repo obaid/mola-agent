@@ -258,3 +258,9 @@ User: Add Redis caching.
 ---
 
 **Questions?** Open an issue at https://github.com/obaid/mola-agent/issues
+
+### Cloud response handling
+
+The Agent discovers available computer sizes from Cloud instead of assuming a fixed profile. An omitted auto-stop setting uses the account's Cloud default. Each conversation reuses its persistent computer; a stopped computer resumes with its disk intact.
+
+The launcher starts an authenticated desktop relay bound to 127.0.0.1. It forwards Cloud's single-use gateway ticket over TLS, allowing the local app to display Cloud desktops without changing the gateway's browser origin restrictions. Desktop viewing uses a single-use gateway ticket. Its short expiry controls when a connection can start; an already connected desktop remains open. Use Reconnect if the socket disconnects.
