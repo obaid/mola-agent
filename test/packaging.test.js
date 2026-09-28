@@ -44,7 +44,7 @@ test('the packaged tarball installs, boots and serves every asset', { skip: buil
   const port = await freePort();
   const child = spawn(join(scratch, 'node_modules', '.bin', 'mola-agent'), [], {
     cwd: scratch,
-    env: { ...process.env, PORT: String(port), MOLA_AGENT_NO_OPEN: '1' },
+    env: { ...process.env, PORT: String(port), MOLA_AGENT_NO_OPEN: '1', MOLA_AGENT_BOOTSTRAP: '0', MOLA_AGENT_HOME: join(scratch, 'home'), MOLA_BACKEND: 'local', MOLA_PORT: '4999' },
     stdio: 'ignore',
   });
   t.after(() => child.kill('SIGKILL'));

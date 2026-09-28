@@ -5,38 +5,56 @@
 A chat app that gives an agent a real [Omarchy](https://omarchy.org) computer. Run Omarchy locally with `mola-core` or in the cloud with `cloud.mola.sh`. The agent works on it, you see the screen while it does, and you can take the mouse whenever you want.
 
 ```sh
-npx mola-agent         # this app
-npx mola-core          # local engine (or use cloud)
+npx mola-agent
 ```
 
-Open a browser, pick a model and backend, then talk to it.
+Choose Local or Cloud in the terminal. Agent connects the backend, opens your
+browser, and guides you through model setup before chat opens.
 
 ## Quick Start
 
-### Local Mode (Default)
+### One-command setup
+
+```sh
+npx mola-agent
+```
+
+On first launch, choose where your computer should run:
+
+- **Local:** reuse an existing Core, or start `npx mola-core@^1.5.0 start` and wait
+  for it to be ready. Core downloads the guest image if it is missing.
+- **Cloud:** reuse your saved Cloud login, or open `mola-cloud login` in your
+  browser and verify the connection.
+
+Then select a model provider, enter its API key, and choose a model in the browser
+wizard. Later launches reuse these settings. To choose the backend again:
+
+```sh
+npx mola-agent --setup
+```
+
+### Local Mode
 
 Run Omarchy computers on your own hardware:
 
 ```sh
-npx mola-core          # Terminal 1 - start engine
-npx mola-agent         # Terminal 2 - start app
+npx mola-agent --backend=local
 ```
 
 - Free and private
 - No account required
 - Limited by your hardware
 
+Ctrl-C stops Agent and any Core it started. An already running Core stays running.
+Local virtualization prerequisites must be installed; Core reports missing host
+requirements during startup. The first guest image download can take several minutes.
+
 ### Cloud Mode
 
 Run persistent Omarchy computers on `cloud.mola.sh`:
 
 ```sh
-# Authenticate once
-npx mola-cloud login
-
-# Run with cloud backend
-export MOLA_BACKEND=cloud
-npx mola-agent
+npx mola-agent --backend=cloud
 ```
 
 Or set the token directly:
@@ -47,7 +65,12 @@ export MOLA_BACKEND=cloud
 npx mola-agent
 ```
 
-The setup wizard lets you choose. Switch anytime in **Settings** (⚙️ button).
+Interactive first launch opens Cloud login if needed. For unattended launches,
+authenticate beforehand with `npx mola-cloud login` or set `MOLA_TOKEN`.
+
+For a separately managed backend, `--no-bootstrap` skips backend startup and
+connection checks. `MOLA_AGENT_BOOTSTRAP=0` does the same. Noninteractive first
+launch defaults to Local unless a backend is specified.
 
 ## What it does
 
@@ -78,13 +101,13 @@ appear as download attachments. Interrupted runs show their error and a
 
 | | Local | Cloud |
 |---|---|---|
-| **Setup** | `npx mola-core` | `npx mola-cloud login` |
+| **Setup** | `npx mola-agent --backend=local` | `npx mola-agent --backend=cloud` |
 | **Where** | Omarchy on your machine | Omarchy on cloud.mola.sh |
 | **Persistence** | Stops auto-delete after idle | Computers persist, auto-stop when idle |
 | **Cost** | Free (your hardware) | Usage-based (10h free/month) |
 | **Auto-stop** | 15 minutes idle | 30 min (free) or 60 min (paid) |
 | **Snapshots** | No | Yes |
-| **Requirements** | 4+ GB RAM per machine | MOLA_TOKEN only |
+| **Requirements** | Host virtualization and 4+ GB RAM per machine | Cloud login or MOLA_TOKEN |
 
 In cloud mode, each conversation gets its own persistent Omarchy computer (or share one across all conversations — see Config).
 
@@ -95,11 +118,11 @@ In cloud mode, each conversation gets its own persistent Omarchy computer (or sh
 - API key for Anthropic, OpenAI or OpenRouter (stored in `~/.mola-agent/config.json`, mode 0600)
 
 **For local backend:**
-- The Mola engine: `npx mola-core`
+- Host virtualization requirements for [mola-core](https://github.com/obaid/mola-core)
 - 4+ GB RAM available for machines
 
 **For cloud backend:**
-- `MOLA_TOKEN` from [cloud.mola.sh](https://cloud.mola.sh)
+- Cloud login through `mola-cloud login`, or `MOLA_TOKEN` from [cloud.mola.sh](https://cloud.mola.sh)
 
 ## Cloud Features
 
@@ -155,7 +178,7 @@ Config lives at `~/.mola-agent/config.json`:
 - `MOLA_BACKEND=local` or `MOLA_BACKEND=cloud` (overrides config)
 
 **Cloud:**
-- `MOLA_TOKEN` - Cloud API token (required for cloud backend)
+- `MOLA_TOKEN` - Cloud API token (overrides saved Cloud login)
 - `MOLA_CLOUD_API` - Cloud API URL (default: https://cloud.mola.sh/api/v1)
 
 **Local:**

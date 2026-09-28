@@ -2,6 +2,9 @@
 
 ## 1.1.0 — 2026-09-27
 
+- Choose Local or Cloud on first launch. Local starts or reuses Mola Core; Cloud
+  connects through browser login. Finish model setup in the browser before chat.
+- Reuse private per-API credentials saved by mola-cloud login.
 - Show compact, expandable computer activity and clear working/error states.
 - Render Markdown tables, lists and code; keep chat and desktop within responsive columns.
 - Clear messages while retaining the conversation, computer and generated files.

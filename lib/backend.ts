@@ -50,7 +50,7 @@ export async function backendStatus() {
       return {
         backend: 'cloud' as const,
         ok: false,
-        detail: 'MOLA_TOKEN not set. Get one from https://cloud.mola.sh',
+        detail: 'Cloud login is missing. Restart with npx mola-agent --backend=cloud to connect.',
       };
     }
     
