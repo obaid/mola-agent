@@ -12,7 +12,7 @@
  * Everything lands in `server/`, which is what `files` publishes.
  */
 import { cpSync, existsSync, mkdirSync, rmSync, statSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -27,7 +27,16 @@ if (!existsSync(standalone)) {
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
-cpSync(standalone, out, { recursive: true });
+// File tracing can include previous bundles through dynamic file reads. Filter
+// only top-level development directories; .next/server holds required chunks.
+const developmentDirs = new Set(['server', 'artifacts', 'test', 'docs']);
+cpSync(standalone, out, {
+  recursive: true,
+  filter: (source) => {
+    const path = relative(standalone, source);
+    return !developmentDirs.has(path.split(sep)[0]) && !path.endsWith('.tgz');
+  },
+});
 
 // The two directories the standalone output does not include.
 const staticDir = join(root, '.next', 'static');
@@ -41,6 +50,11 @@ if (existsSync(publicDir)) {
 
 if (!existsSync(join(out, 'server.js'))) {
   console.error('The bundle has no server.js. Next changed its standalone layout.');
+  process.exit(1);
+}
+
+if ([...developmentDirs].some((dir) => existsSync(join(out, dir)))) {
+  console.error('The bundle contains a previous build or development files. Check the bundle filter before publishing.');
   process.exit(1);
 }
 

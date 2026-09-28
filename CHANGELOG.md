@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 — 2026-09-27
+
+- Exclude previous standalone builds and development evidence from package traces.
+- Reject recursive bundles during packaging and verify the tarball stays clean.
+
 ## 1.1.0 — 2026-09-27
 
 - Choose Local or Cloud on first launch. Local starts or reuses Mola Core; Cloud
